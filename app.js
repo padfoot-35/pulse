@@ -230,9 +230,9 @@ document.addEventListener("ai-state", () => { document.querySelectorAll("#aib,.a
 window.PA = { h, $, byId, go, toast, modal, close, showClause, docHTML, render, OWNERS, PERSONAS, aiBadge, setPersona, GUIDE };
 /* arriving from the GitHub copy's "Open the live-AI version": skip the Story and the welcome, land on the product */
 let fromCopy = false;
-/* a fresh visit always starts on the Story, even if the address carries an old page tag (e.g. #radar from browser history); reload and back keep the current page */
+/* every full page load (new visit or reload) starts on the Story, even if the address carries an old page tag (e.g. #radar); only the live-AI link (#live) and Back/Forward skip it */
 (function(){ let nav = ""; try { const e = performance.getEntriesByType("navigation")[0]; nav = e ? e.type : ""; } catch(e){}
-  if(nav === "navigate" && location.hash && location.hash !== "#live" && location.hash !== "#story"){ try { history.replaceState(null, "", location.pathname + location.search + "#story"); } catch(e){ location.hash = "story"; } } })();
+  if((nav === "navigate" || nav === "reload") && location.hash && location.hash !== "#live" && location.hash !== "#story"){ try { history.replaceState(null, "", location.pathname + location.search + "#story"); } catch(e){ location.hash = "story"; } } })();
 if(location.hash === "#live"){ fromCopy = true; E.S.tourSeen = 1; E.save(); try { history.replaceState(null, "", location.pathname + location.search + "#radar"); } catch(e){ location.hash = "radar"; } }
 document.addEventListener("DOMContentLoaded", () => { render();
   if(fromCopy){ aiOpen = true; { const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } } const hl = () => { const ap = $("#aip"); if(ap){ ap.classList.add("tryhl"); setTimeout(() => ap.classList.remove("tryhl"), 3200); } };
