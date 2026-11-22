@@ -84,7 +84,7 @@ function sidebar(r){
   ${PERSONAS.filter(x => x.id !== p).map(x => `<a class="nav" href="#${x.home}" data-persona="${x.id}"><span class="av ${OWNERS.includes(x.id)?"p":""}" style="width:24px;height:24px;font-size:10px">${P.people[x.id].init}</span>${h(P.people[x.id].name.split(" ")[0])}</a>`).join("")}
   </aside>`;
 }
-const CLAUDE_URL = "https://claude.ai/artifact/QnBrTMmTd8EDzQWVsR9q3q";
+const CLAUDE_URL = "https://claude.ai/artifact/QnBrTMmTd8EDzQWVsR9q3q#live";
 const ON_CLAUDE = !!window.claude;
 const TRY = [
   ["ask", "Ask your contracts anything"],
@@ -159,15 +159,26 @@ function showClause(docId, quote, cl){ const d = E.DOCS[docId];
 
 /* ── render ── */
 let lastRoute = null;
+/* live AI couldn't start: say exactly what to do */
+function signIn(){
+  const d = modal(`<div class="signin"><div class="si-arrow" aria-hidden="true">↗ Claude's own sign-in is also at the top right of this page</div>
+    <h3>Live AI needs you signed in to Claude</h3>
+    <ol class="si-steps">
+      <li><b>Sign in to Claude.</b> <a class="btn ai sm" href="https://claude.ai/login" target="_blank" rel="noopener">Sign in to Claude ↗</a><span class="small muted">Opens in a new tab. Already signed in? Skip this step.</span></li>
+      <li><b>Come back to this tab</b> and click <b>I've signed in: try again</b>.</li>
+      <li><b>Choose “Continue”</b> when Claude asks to let Pulse use it.</li></ol>
+    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn pri" id="si-retry">I've signed in: try again</button><button class="btn sec" data-close>Continue without live AI</button></div>
+    <p class="small muted" style="margin:12px 0 0">Every step of the demo still works without live AI, using prepared answers.</p></div>`);
+  const r = d.querySelector("#si-retry"); if(r) r.onclick = async () => { r.disabled = true; r.textContent = "Asking Claude…"; const ok = await E.retryAI();
+    if(ok){ close(); toast("Live AI is on. Try one of the shortcuts in the left panel."); } else location.reload(); };
+}
 function bindAI(){
   document.querySelectorAll("[data-try]").forEach(b => b.onclick = () => tryAI(b.dataset.try));
   const w = $("#aiwhat"); if(w) w.onclick = aiWhat;
   const on = $("#aion"); if(on && on.tagName === "BUTTON") on.onclick = async () => {
-    if(on.dataset.reload){ location.reload(); return; }
     on.disabled = true; on.textContent = "Asking Claude…";
     const ok = await E.retryAI();
-    if(ok) toast("Live AI is on. Try one of the shortcuts below.");
-    else { toast("Claude didn't turn it on. Make sure you're signed in to Claude, then reload and click Continue when asked."); const b = $("#aion"); if(b){ b.disabled = false; b.textContent = "Reload and try again"; b.dataset.reload = "1"; } }
+    if(ok) toast("Live AI is on. Try one of the shortcuts below."); else signIn();
   };
 }
 let switchedTo = null, justSwitched = false;
@@ -209,5 +220,10 @@ function bindShell(){
 document.addEventListener("ai-state", () => { document.querySelectorAll("#aib,.aib").forEach(el => el.innerHTML = aiBadge()); const ap = document.getElementById("aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } });
 
 window.PA = { h, $, byId, go, toast, modal, close, showClause, docHTML, render, OWNERS, PERSONAS, aiBadge, setPersona, GUIDE };
-document.addEventListener("DOMContentLoaded", render);
+/* arriving from the GitHub copy's "Open the live-AI version": skip the Story and the welcome, land on the product */
+let fromCopy = false;
+if(location.hash === "#live"){ fromCopy = true; E.S.tourSeen = 1; E.save(); try { history.replaceState(null, "", location.pathname + location.search + "#radar"); } catch(e){ location.hash = "radar"; } }
+document.addEventListener("DOMContentLoaded", () => { render();
+  if(fromCopy){ const hl = () => { const ap = $("#aip"); if(ap){ ap.classList.add("tryhl"); setTimeout(() => ap.classList.remove("tryhl"), 3200); } };
+    E.aiReady.then(() => { hl(); toast(E.aiState === "live" ? "You're on the live-AI version, and live AI is on. Try the shortcuts in the left panel." : "You're on the live-AI version. Click “Turn on live AI” in the left panel to start."); }); } });
 })();
