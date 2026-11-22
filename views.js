@@ -264,14 +264,21 @@ function phone(s){
   if(!ci && need && st.rating) convo += `<div class="compose" style="border:0;padding:0 0 0 44px"><input id="cmt" placeholder="Anything Procurement should know? (optional)" value="${h(st.comment || "")}"></div><div style="padding-left:44px"><button class="btn pri sm" id="sendci">Send to Procurement</button></div>`;
   if(ci){ convo += `<div class="mine">${h({ keep:"Keep it as it is", change:"Keep it, but change something", drop:"We don't need it any more" }[ci.need])}${ci.detail ? " · " + h(ci.detail) : ""} · ${ci.rating}/5${ci.comment ? ` · "${h(ci.comment)}"` : ""}</div>` +
     bot(`Thanks ${h(first)}. Priya in Procurement will take it from here. You'll see the final decision before anything goes to ${h(s.name.split(" ")[0])}.`); }
-  (stepTmp[s.id] && stepTmp[s.id].qa || []).forEach(x => { convo += `<div class="mine">${h(x.q)}</div>` + bot(x.a); });
+  const LQ = E.S.legal || [];
+  ((E.S.qa || {})[s.id] || []).forEach((x, k) => { convo += `<div class="mine">${h(x.q)}</div>` + bot(x.a +
+      (x.legal && !x.sent && x.a !== "…" ? `<div style="margin-top:8px"><button class="btn sec sm" data-legal="${k}">Send to Rahul in Legal</button></div>` : "") +
+      (x.sent ? `<div class="small muted" style="margin-top:6px">Sent to Rahul Sen, Legal. His reply will appear here.</div>` : ""));
+    const lq = x.sent && LQ.find(l => l.id === x.sent);
+    if(lq && lq.status === "answered") convo += `<div class="msg"><span class="av" style="background:#e6eef0;color:var(--teal)">RS</span><div class="bd"><div class="nm">Rahul Sen<span>Legal</span></div>${h(lq.answer)}</div></div>`; });
   return `<div class="phone"><div class="screen"><div class="chat-h"><b># Pulse</b><span style="opacity:.75">· direct message</span></div><div class="chat" id="chat">${convo}</div>
     <div class="compose"><input id="askc" placeholder="Ask about this contract, e.g. can we cancel early?"><button class="btn pri sm" id="askcb">Ask</button></div></div></div>`;
 }
 
 /* owner Q&A: answered from extracted terms; live AI when available */
+const strip2 = t => String(t || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 function localAnswer(s, q){
   const T = E.terms(s), x = q.toLowerCase();
+  if(/\b(start|started|begin|began|commence|effective|signed)\b/.test(x)){ const d0 = E.DOCS[s.docs[0]]; return `The ${h(d0.title)} is dated <b>${E.fmtD(d0.effective)}</b>, which is when it started.${s.docs.length > 1 ? ` Later documents (${s.docs.slice(1).map(id => h(E.DOCS[id].title)).join(", ")}) changed some terms but not the start date.` : ""}`; }
   const pickF = /cancel|exit|terminat|end it|get out/.test(x) ? "tfc" : /notice|deadline|when.*(tell|inform)/.test(x) ? "notice" : /price|increase|rise|hike|cost more/.test(x) ? "cap" : /credit|sla|service level|penalt/.test(x) ? (T.credit ? "credit" : "sla") : /pay|invoice/.test(x) ? "pay" : /renew/.test(x) ? "renewal" : null;
   if(!pickF || !T[pickF]) return null;
   const t = T[pickF].cur;
@@ -291,12 +298,24 @@ function mine(){
 function verify(){
   const items = verifyItems(), done = Object.entries(E.S.verified);
   return `<div class="pagehead"><div><div class="eyebrow">Legal · verification queue</div><h1>Only what the AI isn't sure about</h1>
-    <p>Pulse auto-accepts terms it reads with high confidence and sends you the rest. Until you confirm, it uses the <b>stricter</b> reading, so no deadline is missed while a term waits.</p></div>${chip(items.length + " waiting","purple")}</div>
+    <p>Pulse auto-accepts terms it reads with high confidence and sends you the rest. Until you confirm, it uses the <b>stricter</b> reading, so no deadline is missed while a term waits.</p></div>${chip((items.length + (E.S.legal || []).filter(x => x.status === "open").length) + " waiting","purple")}</div>
+  ${legalQs()}
   ${items.length ? "" : `<div class="callout good">All caught up. ${done.length} items confirmed.</div>`}
   <div class="grid">${items.map(it => it.light ? `<div class="card pad"><div class="row between"><div><div class="eyebrow">${h(it.s.category)} · tracker import</div><h3>${h(it.s.name)}</h3></div>${chip(Math.round(it.s.conf*100) + "% read confidence","amber")}</div>
       <p class="small" style="margin-top:8px">Scanned PDF with poor text quality. Pulse read: term ends <b>${E.fmtD(it.s.end)}</b>, <b>${it.s.notice} days'</b> notice, ${it.s.auto ? "auto-renews" : "expires"}.</p>
       <div class="row"><button class="btn pri sm" data-ok="${it.s.id}.scan">These are right</button><button class="btn sec sm" data-ok="${it.s.id}.scan" data-msg="Requested a clean copy from the owner">Request a clean copy</button></div></div>` : vItem(it)).join("")}</div>
   ${done.length ? `<h3 style="margin:28px 0 10px">Confirmed</h3><div class="card scroll"><table><tbody>${done.map(([k, by]) => { const [id, f] = k.split("."); const s = sup(id) || P.portfolio.find(x => x.id === id); return `<tr><td>${h(s ? s.name : id)}</td><td>${h(f === "scan" ? "Scanned record" : L(f))}</td><td class="small muted">Confirmed by ${h(by)}</td></tr>`; }).join("")}</tbody></table></div>` : ""}`;
+}
+function legalQs(){
+  const all = E.S.legal || [], open = all.filter(x => x.status === "open"), ans = all.filter(x => x.status === "answered");
+  if(!all.length) return "";
+  return `<h3 style="margin:4px 0 10px">Questions from business owners ${open.length ? chip(open.length + " open","purple") : ""}</h3>
+  <div class="grid" style="margin-bottom:22px">${open.map(x => { const sp = sup(x.sid), who = P.people[x.from] || { name:"Owner" };
+    return `<div class="card pad lq"><div class="row between"><div><div class="eyebrow">${h(sp ? sp.name : x.sid)} · from ${h(who.name)} via Slack</div><h3 style="font-size:17px">"${h(x.q)}"</h3></div><a class="btn sec sm" href="#c-${h(x.sid)}">Open the contract</a></div>
+      ${x.context ? `<p class="small muted" style="margin:8px 0 0">Pulse's answer so far: ${h(x.context.slice(0, 260))}${x.context.length > 260 ? "…" : ""}</p>` : ""}
+      <textarea class="draft" id="lqa-${x.id}" style="min-height:90px;margin-top:10px" placeholder="Your reply to ${h(who.name.split(" ")[0])}. It goes straight back to their Slack thread."></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn pri sm" data-lqsend="${x.id}">Send reply to ${h(who.name.split(" ")[0])}</button></div></div>`; }).join("")}
+  ${ans.length ? `<div class="card scroll"><table><tbody>${ans.map(x => `<tr><td class="small"><b style="font-weight:600">${h((sup(x.sid) || {}).name || x.sid)}</b> · "${h(x.q)}"</td><td class="small muted">Answered: ${h(x.answer)}</td></tr>`).join("")}</tbody></table></div>` : ""}</div>`;
 }
 function vItem({ s, f, t }){
   const x = t.cur, older = t.hist;
@@ -495,6 +514,10 @@ function bind(r){
   /* inbox */
   if(r === "inbox") bindInbox();
   /* verify */
+  on("[data-lqsend]", "click", e => { const id = e.currentTarget.dataset.lqsend, ta = document.getElementById("lqa-" + id), v = ta ? ta.value.trim() : "";
+    if(!v){ A().toast("Write a short reply first."); return; }
+    const q = (E.S.legal || []).find(x => x.id === id); if(!q) return; q.status = "answered"; q.answer = v; q.by = "rahul"; E.save();
+    const who = P.people[q.from]; A().toast(`Reply sent to ${who ? who.name.split(" ")[0] : "the owner"}'s Slack thread.`); A().render(); });
   on("[data-ok]", "click", e => { const k = e.currentTarget.dataset.ok, msg = e.currentTarget.dataset.msg; if(msg){ A().toast(msg + "."); if(/clean copy/.test(msg)) return; if(/stricter/.test(msg)) return; } E.S.verified[k] = "Rahul Sen"; E.save(); A().toast("Confirmed. Deadlines and packets now use the verified term."); A().render(); });
   /* finance */
   on("[data-fin]", "click", e => { const b = e.currentTarget; A().modal(`<h3>${h(b.dataset.act)}?</h3><p class="muted" style="margin-top:8px">This is a simulated action in the demo. In production it would place a payment hold in the ERP and email the supplier the clause-backed reason, after this confirmation.</p><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn sec" data-close>Cancel</button><button class="btn pri" id="finok">${h(b.dataset.act)}</button></div>`);
@@ -553,12 +576,45 @@ function bindInbox(){
     E.S.checkins[s.id] = { need:st.need, detail, seats:s.id === "lumen" && st.need === "change" ? (st.seats || 15) : null, rating:st.rating, comment:st.comment || "", when:"today" }; E.save();
     A().toast("Sent. Priya in Procurement has your answer."); A().render(); };
   const ask = async () => { const inp = document.getElementById("askc"); const qv = inp.value.trim(); if(!qv) return; inp.value = "";
-    st.qa = st.qa || []; const item = { q:qv, a:"…" }; st.qa.push(item); A().render();
+    E.S.qa = E.S.qa || {}; const log = E.S.qa[s.id] = E.S.qa[s.id] || []; const item = { q:qv, a:"…" }; log.push(item); A().render();
+    const wantsLegal = /\b(legal|lawyer|counsel|rahul)\b/i.test(qv) && /\b(ask|check|confirm|send|get back|escalat|loop)/i.test(qv);
     const local = localAnswer(s, qv);
-    try { const ctx = window.PD.context(s); const out = await E.ask(`Answer a business manager's question about one supplier contract in 2–3 plain sentences, using ONLY these extracted terms. Cite the clause like (cl. 5.1). If the terms don't answer it, say so and suggest asking Legal.\n\n${ctx}\n\nQuestion: ${qv}`, { modelTier:"quick" });
-      item.a = E.md(out.text) + (local ? `<div style="margin-top:4px">${local.split('<div style="margin-top:4px">')[1] ? '<div style="margin-top:4px">' + local.split('<div style="margin-top:4px">')[1] : ""}</div>` : ""); }
-    catch(e){ item.a = local || `I can't answer that from this contract's extracted terms. I've flagged it for Rahul in Legal.`; }
-    A().render(); };
+    const strip = t => String(t || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    try {
+      const docs = s.docs.map(id => E.DOCS[id]).map(d => `=== ${d.title} (${d.type}, dated ${E.fmtD(d.effective)}) ===\n${d.text}`).join("\n\n");
+      const hist = log.slice(0, -1).slice(-4).map(x => `Q: ${x.q}\nA: ${strip(x.a)}`).join("\n");
+      const out = await E.ask(`You are Pulse, answering a business owner's question in Slack about ONE supplier contract. Use ONLY the computed facts and contract documents below; never invent a fact.
+Rules:
+- Answer in 2 to 4 plain sentences and cite clauses like (cl. 2.1).
+- If the answer is stated in the documents, give it.
+- If it is not stated but can be worked out from the text, begin with "Not stated directly. Worked out:" and show the working with clause numbers.
+- If it cannot be answered from these documents, or needs a legal judgement, say so in one sentence and end your reply with the marker [LEGAL].
+- If the person asks you to check with Legal or a lawyer, say you can send the question to Rahul in Legal with one tap, and end your reply with [LEGAL].
+- Where an amendment changes a clause, the newer wording applies.
+
+COMPUTED FACTS (worked out by code; trust these):
+${window.PD.context(s)}
+
+CONTRACT DOCUMENTS:
+${docs.slice(0, 40000)}
+${hist ? `\nCONVERSATION SO FAR:\n${hist}\n` : ""}
+QUESTION: ${qv}`, { modelTier:"quick" });
+      let t = out.text; item.legal = /\[LEGAL\]/.test(t) || wantsLegal; t = t.replace(/\[LEGAL\]/g, "").trim();
+      item.a = E.md(t);
+    } catch(e){
+      if(wantsLegal){ item.a = "I can send this to Rahul in Legal with one tap."; item.legal = true; }
+      else if(local) item.a = local;
+      else { item.a = "I can't answer that from the terms Pulse has extracted. Want me to send it to Rahul in Legal?"; item.legal = true; }
+    }
+    E.save(); A().render(); const ch = document.getElementById("chat"); if(ch) ch.scrollTop = ch.scrollHeight; };
+  { const ch = document.getElementById("chat"); if(ch && ((E.S.qa || {})[s.id] || []).length) ch.scrollTop = ch.scrollHeight; }
+  document.querySelectorAll("[data-legal]").forEach(b => b.onclick = () => {
+    const log = (E.S.qa || {})[s.id] || [], k = +b.dataset.legal, it = log[k]; if(!it) return;
+    /* "ask legal about it" refers back to the last real question */
+    let q = it.q; if(/\b(legal|lawyer|counsel|rahul)\b/i.test(q) && k > 0) q = log[k - 1].q;
+    const id = "lq" + Date.now().toString(36);
+    E.S.legal = (E.S.legal || []).concat([{ id, sid:s.id, from:E.S.persona, q, context:it.q !== q ? strip2(log[k - 1].a) : strip2(it.a), status:"open" }]);
+    it.sent = id; E.save(); A().toast("Sent to Rahul in Legal. His reply will appear in this thread."); A().render(); });
   const b = document.getElementById("askcb"); if(b) b.onclick = ask;
   const i = document.getElementById("askc"); if(i) i.onkeydown = e => { if(e.key === "Enter") ask(); };
 }

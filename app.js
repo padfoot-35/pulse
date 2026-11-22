@@ -74,7 +74,7 @@ function strip(r){ const p = E.S.persona, me = P.people[p], inf = (P.personaInfo
 function sidebar(r){
   const p = E.S.persona, me = P.people[p];
   const counts = { radar: E.allRows().filter(x => x.c.days != null && x.c.days >= 0 && x.c.days <= 14 && !E.S.decisions[x.s.id]).length,
-    verify: window.PV.verifyItems().length, inbox: window.PV.myThreads(p).filter(t => !E.S.checkins[t.id]).length };
+    verify: window.PV.verifyItems().length + (E.S.legal || []).filter(x => x.status === "open").length, inbox: window.PV.myThreads(p).filter(t => !E.S.checkins[t.id]).length };
   return `<aside class="side"><div class="pp"><span class="av lg ${OWNERS.includes(p)?"p":""}">${me.init}</span><span class="nm2"><b>${h(me.name)}</b><span>${h(me.role)}</span></span></div>
   ${navFor(p).map(([k, l]) => `<a class="nav ${r === k || r.startsWith(k.slice(0,3)+"-") && k==="contracts" ? "on" : ""}" href="#${k}">${l}${counts[k] ? `<span class="ct">${counts[k]}</span>` : ""}</a>`).join("")}
   <div class="sep">Live AI</div><div class="aip" id="aip">${aiPanel()}</div>
