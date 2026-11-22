@@ -166,16 +166,18 @@ function showClause(docId, quote, cl){ const d = E.DOCS[docId];
 let lastRoute = null;
 /* live AI couldn't start: say exactly what to do */
 function signIn(){
+  /* Claude's page decides sign-in when it loads, so after signing in the page must load again: a fresh tab is the reliable way */
   const d = modal(`<div class="signin"><div class="si-arrow" aria-hidden="true">↗ Claude's own sign-in is also at the top right of this page</div>
     <h3>Live AI needs you signed in to Claude</h3>
     <ol class="si-steps">
-      <li><b>Sign in to Claude.</b> <a class="btn ai sm" href="https://claude.ai/login" target="_blank" rel="noopener">Sign in to Claude ↗</a><span class="small muted">Opens in a new tab. Already signed in? Skip this step.</span></li>
-      <li><b>Come back to this tab</b> and click <b>I've signed in: try again</b>.</li>
+      <li><b>Sign in to Claude.</b> <a class="btn ai sm" href="https://claude.ai/login" target="_blank" rel="noopener">Sign in to Claude ↗</a><span class="small muted">Opens in a new tab. Already signed in? Skip to step 2.</span></li>
+      <li><b>Open Pulse again in a fresh tab.</b> <a class="btn pri sm" href="${CLAUDE_URL}" target="_blank" rel="noopener">Open Pulse with live AI ↗</a><span class="small muted">This page was loaded before you signed in, so it can't see your sign-in. A fresh tab can. (Or reload this whole page with your browser's reload button.)</span></li>
       <li><b>Choose “Continue”</b> when Claude asks to let Pulse use it.</li></ol>
-    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn pri" id="si-retry">I've signed in: try again</button><button class="btn sec" data-close>Continue without live AI</button></div>
+    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn sec" id="si-retry">Try again in this tab</button><button class="btn sec" data-close>Continue without live AI</button></div>
     <p class="small muted" style="margin:12px 0 0">Every step of the demo still works without live AI, using prepared answers.</p></div>`);
   const r = d.querySelector("#si-retry"); if(r) r.onclick = async () => { r.disabled = true; r.textContent = "Asking Claude…"; const ok = await E.retryAI();
-    if(ok){ close(); toast("Live AI is on. Try one of the shortcuts in the left panel."); } else location.reload(); };
+    if(ok){ close(); toast("Live AI is on. Open “What can live AI do?” for ideas to try."); }
+    else { r.disabled = false; r.textContent = "Still not connected: use step 2"; } };
 }
 function bindAI(){
   const tg = $("#aitoggle"); if(tg) tg.onclick = () => { aiOpen = !aiOpen; const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } };
