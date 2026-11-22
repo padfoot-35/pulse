@@ -611,9 +611,11 @@ QUESTION: ${qv}`, { modelTier:"quick" });
   document.querySelectorAll("[data-legal]").forEach(b => b.onclick = () => {
     const log = (E.S.qa || {})[s.id] || [], k = +b.dataset.legal, it = log[k]; if(!it) return;
     /* "ask legal about it" refers back to the last real question */
-    let q = it.q; if(/\b(legal|lawyer|counsel|rahul)\b/i.test(q) && k > 0) q = log[k - 1].q;
+    let q = it.q;
+    const rest = q.replace(/[,.;]?\s*(can you |could you |please )?(ask|check with|confirm with|send (it|this) to|loop in|escalate to)( the)? (legal|lawyer|counsel|rahul)( team)?( and get back to me)?[.!]?/ig, "").trim();
+    if(rest.length >= 12) q = rest; else if(k > 0) q = log[k - 1].q;
     const id = "lq" + Date.now().toString(36);
-    E.S.legal = (E.S.legal || []).concat([{ id, sid:s.id, from:E.S.persona, q, context:it.q !== q ? strip2(log[k - 1].a) : strip2(it.a), status:"open" }]);
+    E.S.legal = (E.S.legal || []).concat([{ id, sid:s.id, from:E.S.persona, q, context:(q === (log[k - 1] || {}).q && it.q !== q) ? strip2(log[k - 1].a) : strip2(it.a), status:"open" }]);
     it.sent = id; E.save(); A().toast("Sent to Rahul in Legal. His reply will appear in this thread."); A().render(); });
   const b = document.getElementById("askcb"); if(b) b.onclick = ask;
   const i = document.getElementById("askc"); if(i) i.onkeydown = e => { if(e.key === "Enter") ask(); };
