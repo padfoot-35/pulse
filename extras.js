@@ -44,7 +44,7 @@ function runOnboard(){
     document.getElementById("obsum").innerHTML = `<div class="grid g2" style="margin-top:14px">
       <div class="card kpi"><div class="k num">7</div><div class="l">supplier families from 15 files</div></div>
       <div class="card kpi"><div class="k num">${nTerms}</div><div class="l">terms extracted, each with its clause quote</div></div>
-      <div class="card kpi"><div class="k num" style="color:var(--purple)">${low + 1}</div><div class="l">items sent to Legal (2 unsure terms, 1 scan)</div></div>
+      <div class="card kpi"><div class="k num" style="color:var(--purple)">${low + 1}</div><div class="l">items for a human to check: 2 unsure terms go to Legal, 1 poor scan goes back for a clean copy</div></div>
       <div class="card kpi"><div class="k num" style="color:var(--red)">1</div><div class="l">amendment that changes a deadline: CleanSpace, 30 → 90 days</div></div></div>
       <div class="callout good" style="margin-top:12px">Deadlines are now calculated for every family. The renewal radar is live.</div>
       <div class="row" style="margin-top:12px"><a class="btn pri" href="#radar">Open the renewal radar →</a><a class="btn sec" href="#verify">See Legal's queue</a></div>`;

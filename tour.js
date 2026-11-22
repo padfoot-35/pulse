@@ -54,8 +54,15 @@ function el(){ if(layer) return; layer = document.createElement("div"); layer.id
   document.body.appendChild(layer); ring = layer.querySelector("#tring"); card = layer.querySelector("#tcard");
   window.addEventListener("scroll", place, { passive:true }); window.addEventListener("resize", place); }
 
-function watch(){ auto = true; start(0); }
-function start(from = 0){ el(); if(from === 0){ E.reset(); if(window.PX) window.PX.reset(); STEPS.forEach(x => x._armed = false); } on = true; i = from; E.S.tourSeen = 1; E.save(); layer.style.display = "block"; show(); }
+/* starting from the top resets the demo: ask first if the evaluator has done anything */
+function progress(){ const S = E.S; return Object.keys(S.decisions).length + Object.keys(S.checkins).length + Object.keys(S.verified).length + Object.keys(S.reassigned).length + Object.keys(S.finance || {}).length + (S.added || []).length + (S.legal || []).length + ((window.PX && (window.PX.obDone || window.PX.shock)) ? 1 : 0); }
+function confirmReset(go){ if(!progress()){ go(); return; }
+  const d = window.PA.modal(`<h3>Start from the beginning?</h3><p style="margin:8px 0 0">The guided tour resets the demo so the story runs in order. What you've done so far (decisions, check-ins, Legal confirmations, added contracts, questions) will be cleared.</p>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:18px"><button class="btn sec" data-close>Keep my work</button><button class="btn pri" id="rsgo">Reset and start</button></div>`);
+  d.querySelector("#rsgo").onclick = () => { window.PA.close(); go(); }; }
+function watch(){ confirmReset(() => { auto = true; start(0, true); }); }
+function startTop(){ confirmReset(() => start(0, true)); }
+function start(from = 0, ok){ if(from === 0 && !ok){ startTop(); return; } el(); if(from === 0){ E.reset(); if(window.PX) window.PX.reset(); STEPS.forEach(x => x._armed = false); } on = true; i = from; E.S.tourSeen = 1; E.save(); layer.style.display = "block"; show(); }
 function stop(){ STEPS = BASE; custom = false; auto = false; clearTimeout(timer); on = false; if(layer) layer.style.display = "none"; document.body.classList.remove("touring"); window.PA.render(); }
 function show(){
   const s = STEPS[i]; document.body.classList.add("touring"); if(s.pre) s.pre();
@@ -115,10 +122,10 @@ function after(){
   setTimeout(() => { paint(); const d = s.until && s.until(); if(d && !lastDone){ lastDone = true; setTimeout(() => { lastDone = false; if(on && STEPS[i] === s) next(); }, 1100); } }, 30);
 }
 function welcome(){
-  window.PA.modal(`<div class="eyebrow">Product demo · about 5 minutes</div><h2 style="font-size:28px">Follow one renewal from shared drive to supplier</h2>
+  window.PA.modal(`<div class="eyebrow">Guided tour · about 5 minutes</div><h2 style="font-size:28px">Follow one renewal from shared drive to supplier</h2>
     <p class="ink2" style="margin-top:12px">Vyom Technologies has 2,500 suppliers and no contract system. A housekeeping contract worth ₹1.86 Cr is about to renew itself, and the real deadline is 8 days away. You'll play each person involved:</p>
     <div class="grid g2" style="margin:14px 0">${[["PN","Priya","Procurement: sees what's due, decides"],["RS","Rahul","Legal: checks what the AI isn't sure of"],["KR","Kavya","Supplier owner: answers two questions"],["MI","Meera","Finance: pays what the contract says"],["SC","The supplier","Receives a clear, clause-backed message"]].map(([a, n, d]) => `<div class="row" style="gap:10px;align-items:flex-start;flex-wrap:nowrap"><span class="av ${n === "Kavya" ? "p" : ""}">${a}</span><span class="small"><b>${n}</b><br><span class="muted">${d}</span></span></div>`).join("")}</div>
-    <div class="row" style="justify-content:flex-end;margin-top:8px;gap:8px"><button class="btn ghost" id="wfree">Explore on my own</button><button class="btn sec" id="wwatch">▶ Watch it play (about 2 min)</button><button class="btn pri" id="wgo">Take the guided tour</button></div>`);
+    <div class="row" style="justify-content:flex-end;margin-top:8px;gap:8px"><button class="btn ghost" id="wfree">Explore on my own</button><button class="btn sec" id="wwatch">▶ Let the product play itself (2 min)</button><button class="btn pri" id="wgo">Take the guided tour</button></div>`);
   document.getElementById("wwatch").onclick = () => { window.PA.close(); watch(); };
   document.getElementById("wgo").onclick = () => { window.PA.close(); start(0); };
   document.getElementById("wfree").onclick = () => { E.S.tourSeen = 1; E.save(); window.PA.close(); };

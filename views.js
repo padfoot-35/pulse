@@ -21,8 +21,14 @@ function status(s){
   if(d) return `<span class="status" style="color:var(--green)"><span class="dot" style="background:var(--green)"></span>Decided · ${h(d.title)}</span>`;
   if(ci) return `<span class="status" style="color:var(--teal)"><span class="dot" style="background:var(--teal)"></span>Owner replied</span>`;
   if(!s.light && E.ownerOf(s).left) return `<span class="status" style="color:var(--red)"><span class="dot" style="background:var(--red)"></span>No owner</span>`;
-  if(E.S.nudged[s.id]) return `<span class="status"><span class="dot" style="background:var(--amber)"></span>Check-in sent</span>`;
-  return `<span class="status muted"><span class="dot" style="background:var(--mist)"></span>Not started</span>`; }
+  if(ciSent(s)) return `<span class="status"><span class="dot" style="background:var(--amber)"></span>Check-in sent · no reply</span>`;
+  const c = E.clock(s); return `<span class="status muted"><span class="dot" style="background:var(--mist)"></span>Check-in due ${c.deadline ? E.fmtDs(E.addDays(c.deadline, -45)) : "later"}</span>`; }
+/* Pulse sends the owner check-in automatically 45 days before the notice deadline (or straight away if a contract is found late) */
+function ciSent(s){ if(E.S.nudged[s.id]) return true; if(!s.light && E.ownerOf(s).left) return false; const c = E.clock(s); return c.evergreen || (c.days != null && c.days <= 45); }
+const isEst = x => (x.why || []).some(w => /assum|typically|estimate/i.test(w));
+function whyNot(opts){ const rec = opts.find(x => x.key === opts.rec); if(!rec) return "";
+  const big = opts.filter(x => x.key !== opts.rec && isEst(x) && x.value > (rec.value || 0)).sort((a, b) => b.value - a.value)[0]; if(!big) return "";
+  return `<div class="callout" style="margin-top:12px"><div class="eyebrow">Why not "${h(big.title)}" (≈ +${E.inr(big.value)})?</div>That figure is an estimate of what re-tendering might save, not a contractual amount. It only holds if a replacement can be found and onboarded before the deadline. "${h(rec.title)}" protects a value the contract already guarantees and keeps the option to exit open until the notice deadline.</div>`; }
 
 function verifyItems(){
   const out = [];
@@ -37,7 +43,7 @@ function radar(){
   const open = r => !E.S.decisions[r.s.id];
   const due14 = rows.filter(r => r.c.days != null && r.c.days >= 0 && r.c.days <= 14);
   const atStake = due14.filter(open).reduce((a, r) => a + r.s.annual, 0);
-  const waiting = deep().filter(s => !E.S.checkins[s.id] && !E.S.decisions[s.id]).length;
+  const waiting = deep().filter(s => ciSent(s) && !E.S.checkins[s.id] && !E.S.decisions[s.id]).length;
   const protectedV = Object.values(E.S.decisions).reduce((a, d) => a + (d.value || 0), 0);
   const groups = [
     ["Decide in the next 14 days", r => r.c.days != null && r.c.days >= 0 && r.c.days <= 14],
@@ -56,10 +62,11 @@ function radar(){
   return `<div class="pagehead"><div><div class="eyebrow">Procurement · renewal radar</div><h1>What needs a decision</h1>
     <p>Every notice deadline across ${P.suppliers.length + P.portfolio.length} suppliers in this demo. Deadlines are calculated from each contract's current terms, including amendments, then ranked by money at stake and days left.</p></div>
     <a class="btn sec" href="#contracts">All contracts</a></div>
+  ${E.S.persona === "priya" ? legalQs("priya") : ""}
   <div class="grid g4" style="margin-bottom:8px">
     <div class="card kpi"><div class="k num" style="color:var(--red)">${E.inr(atStake)}</div><div class="l">renews automatically in the next 14 days unless someone acts</div></div>
     <div class="card kpi"><div class="k num">${due14.filter(open).length}</div><div class="l">renewals needing a decision this fortnight</div></div>
-    <div class="card kpi"><div class="k num">${waiting}</div><div class="l">owners who haven't answered their check-in</div></div>
+    <div class="card kpi"><div class="k num">${waiting}</div><div class="l">check-ins sent to owners, no reply yet</div></div>
     <div class="card kpi"><div class="k num" style="color:var(--green)">${E.inr(protectedV)}</div><div class="l">value protected by decisions so far</div></div>
   </div>
   ${groups.map(([t, f]) => { const g = rows.filter(f).sort((a, b) => (a.c.days ?? 999) - (b.c.days ?? 999) || b.s.annual - a.s.annual); if(!g.length) return "";
@@ -162,8 +169,8 @@ function packet(id){
     : ci ? `<div class="callout good"><div class="eyebrow" style="color:var(--green)">${h(o.name)} replied · ${h(ci.when || "today")}</div>
         <div><b>${h({ keep:"Keep it as it is", change:"Keep it, but change something", drop:"We don't need it any more" }[ci.need])}</b>${ci.detail ? `: ${h(ci.detail)}` : ""}</div>
         <div class="small" style="margin-top:4px">Service rating: ${"★".repeat(ci.rating || 0)}${"☆".repeat(5 - (ci.rating || 0))}${ci.comment ? ` · "${h(ci.comment)}"` : ""}</div></div>`
-    : `<div class="callout warn"><div class="eyebrow" style="color:var(--amber)">Waiting for ${h(o.name)}</div>The business owner knows whether this supplier is still needed and how it is performing. ${E.S.nudged[s.id] ? "Check-in sent." : ""}
-        <div class="row" style="margin-top:10px">${E.S.nudged[s.id] ? "" : `<button class="btn sec sm" id="nudge">Send the 60-second check-in</button>`}<button class="btn ghost sm" data-persona="${o.id}" data-goto="inbox">See it as ${h(o.name.split(" ")[0])} →</button></div></div>`;
+    : `<div class="callout warn"><div class="eyebrow" style="color:var(--amber)">Waiting for ${h(o.name)}</div>The business owner knows whether this supplier is still needed and how it is performing. ${ciSent(s) ? "Pulse sent the 60-second check-in; no reply yet." : "The check-in hasn't gone out yet."}
+        <div class="row" style="margin-top:10px">${ciSent(s) ? `<button class="btn sec sm" id="nudge">Nudge ${h(o.name.split(" ")[0])}</button>` : `<button class="btn sec sm" id="nudge">Send the 60-second check-in</button>`}<button class="btn ghost sm" data-persona="${o.id}" data-goto="inbox">See it as ${h(o.name.split(" ")[0])} →</button></div></div>`;
 
   const facts = [];
   if(ops.sla){ facts.push(`<div class="card pad"><h4>${h(ops.slaLabel)}</h4><div class="bars" style="margin-top:10px">${ops.sla.map(([m, v]) => { const lo = ops.slaTarget - 8; const w = Math.max(4, (v - lo) / (100 - lo) * 100), t = (ops.slaTarget - lo) / (100 - lo) * 100;
@@ -199,8 +206,9 @@ function packet(id){
       <div class="card pad"><div class="row between"><h3>Options</h3><span class="badge-ai">Recommended by Pulse</span></div>
         <p class="small muted" style="margin:6px 0 12px">Rules apply the contract terms, the owner's answer and the data on the left. Amounts are calculated, not generated.</p>
         <div class="grid">${opts.map(x => `<div class="opt ${x.key === opts.rec ? "rec" : ""} ${x.key === choose ? "sel" : ""}" data-opt="${x.key}" tabindex="0" role="button" aria-pressed="${x.key === choose}">
-          <div class="row between">${x.key === opts.rec ? chip("Recommended","purple") : "<span></span>"}<span class="v num">${x.value ? "+" + E.inr(x.value) : "₹0"}<span class="small muted" style="font-size:12px;letter-spacing:0"> protected</span></span></div>
+          <div class="row between">${x.key === opts.rec ? chip("Recommended","purple") : "<span></span>"}<span class="v num">${x.value ? (isEst(x) ? "≈ +" : "+") + E.inr(x.value) : "₹0"}<span class="small muted" style="font-size:12px;letter-spacing:0"> ${isEst(x) ? "estimated" : "protected"}</span></span></div>
           <b style="font-weight:600;font-size:16px">${h(x.title)}</b><ul style="margin:0;padding-left:18px;font-size:14px;color:var(--ink2)">${x.why.map(w => `<li>${h(w)}</li>`).join("")}</ul></div>`).join("")}</div>
+        ${whyNot(opts)}
         <div class="callout" style="margin-top:12px"><div class="eyebrow">What would change this recommendation</div>${h(CHANGE[s.id] || (s.added ? "If the owner says the service is no longer needed, Pulse switches to non-renewal. If service is rated 4–5 and the supplier agrees to hold prices, a quiet renewal is fine." : ""))}</div>
         <div id="explain" style="margin-top:12px"></div>
         <button class="btn ghost sm" id="explainBtn" style="margin-top:4px">Ask AI to challenge this recommendation</button>
@@ -266,11 +274,11 @@ function phone(s){
     bot(`Thanks ${h(first)}. Priya in Procurement will take it from here. You'll see the final decision before anything goes to ${h(s.name.split(" ")[0])}.`); }
   const LQ = E.S.legal || [];
   ((E.S.qa || {})[s.id] || []).forEach((x, k) => { convo += `<div class="mine">${h(x.q)}</div>` + bot(x.a +
-      (x.legal && !x.sent && x.a !== "…" ? `<div style="margin-top:8px"><button class="btn sec sm" data-legal="${k}">Send to Rahul in Legal</button></div>` : "") +
-      (x.sent ? ((LQ.find(l => l.id === x.sent) || {}).status === "answered" ? `<div class="small muted" style="margin-top:6px">Sent to Rahul Sen, Legal. He replied below.</div>`
-        : `<div class="small muted" style="margin-top:6px">Sent to Rahul Sen, Legal. His reply will appear here once he answers.</div><div class="legalnext"><span>In this demo you play Rahul too.</span><button class="btn pri sm" data-persona="rahul" data-goto="verify">Answer it as Rahul →</button></div>`) : ""));
+      (x.legal && !x.sent && x.a !== "…" ? `<div style="margin-top:8px"><button class="btn sec sm" data-legal="${k}">Send to ${ROUTE[x.route || "rahul"].short}</button></div>` : "") +
+      (x.sent ? (() => { const l = LQ.find(l => l.id === x.sent) || {}, R = ROUTE[l.to || "rahul"]; return l.status === "answered" ? `<div class="small muted" style="margin-top:6px">Sent to ${R.full}. ${R.he} replied below.</div>`
+        : `<div class="small muted" style="margin-top:6px">Sent to ${R.full}. ${R.his} reply will appear here once ${R.he.toLowerCase()} answers.</div><div class="legalnext"><span>In this demo you play ${R.first} too.</span><button class="btn pri sm" data-persona="${l.to || "rahul"}" data-goto="${R.page}">Answer it as ${R.first} →</button></div>`; })() : ""));
     const lq = x.sent && LQ.find(l => l.id === x.sent);
-    if(lq && lq.status === "answered") convo += `<div class="msg"><span class="av" style="background:#e6eef0;color:var(--teal)">RS</span><div class="bd"><div class="nm">Rahul Sen<span>Legal</span></div>${h(lq.answer)}</div></div>`; });
+    if(lq && lq.status === "answered") convo += `<div class="msg"><span class="av" style="background:#e6eef0;color:var(--teal)">${ROUTE[lq.to || "rahul"].init}</span><div class="bd"><div class="nm">${ROUTE[lq.to || "rahul"].name}<span>${ROUTE[lq.to || "rahul"].team}</span></div>${h(lq.answer)}</div></div>`; });
   return `<div class="phone"><div class="screen"><div class="chat-h"><b># Pulse</b><span style="opacity:.75">· direct message</span></div><div class="chat" id="chat">${convo}</div>
     <div class="compose"><input id="askc" placeholder="Ask about this contract, e.g. can we cancel early?"><button class="btn pri sm" id="askcb">Ask</button></div></div></div>`;
 }
@@ -300,15 +308,17 @@ function verify(){
   const items = verifyItems(), done = Object.entries(E.S.verified);
   return `<div class="pagehead"><div><div class="eyebrow">Legal · verification queue</div><h1>Only what the AI isn't sure about</h1>
     <p>Pulse auto-accepts terms it reads with high confidence and sends you the rest. Until you confirm, it uses the <b>stricter</b> reading, so no deadline is missed while a term waits.</p></div>${chip((items.length + (E.S.legal || []).filter(x => x.status === "open").length) + " waiting","purple")}</div>
-  ${legalQs()}
+  ${legalQs("rahul")}
   ${items.length ? "" : `<div class="callout good">All caught up. ${done.length} items confirmed.</div>`}
   <div class="grid">${items.map(it => it.light ? `<div class="card pad"><div class="row between"><div><div class="eyebrow">${h(it.s.category)} · tracker import</div><h3>${h(it.s.name)}</h3></div>${chip(Math.round(it.s.conf*100) + "% read confidence","amber")}</div>
       <p class="small" style="margin-top:8px">Scanned PDF with poor text quality. Pulse read: term ends <b>${E.fmtD(it.s.end)}</b>, <b>${it.s.notice} days'</b> notice, ${it.s.auto ? "auto-renews" : "expires"}.</p>
       <div class="row"><button class="btn pri sm" data-ok="${it.s.id}.scan">These are right</button><button class="btn sec sm" data-ok="${it.s.id}.scan" data-msg="Requested a clean copy from the owner">Request a clean copy</button></div></div>` : vItem(it)).join("")}</div>
   ${done.length ? `<h3 style="margin:28px 0 10px">Confirmed</h3><div class="card scroll"><table><tbody>${done.map(([k, by]) => { const [id, f] = k.split("."); const s = sup(id) || P.portfolio.find(x => x.id === id); return `<tr><td>${h(s ? s.name : id)}</td><td>${h(f === "scan" ? "Scanned record" : L(f))}</td><td class="small muted">Confirmed by ${h(by)}</td></tr>`; }).join("")}</tbody></table></div>` : ""}`;
 }
-function legalQs(){
-  const all = E.S.legal || [], open = all.filter(x => x.status === "open"), ans = all.filter(x => x.status === "answered");
+const ROUTE = { rahul:{ name:"Rahul Sen", first:"Rahul", team:"Legal", init:"RS", short:"Rahul in Legal", full:"Rahul Sen, Legal", he:"He", his:"His", page:"verify" },
+  priya:{ name:"Priya Nair", first:"Priya", team:"Procurement", init:"PN", short:"Priya in Procurement", full:"Priya Nair, Procurement", he:"She", his:"Her", page:"radar" } };
+function legalQs(to){
+  const all = (E.S.legal || []).filter(x => (x.to || "rahul") === to), open = all.filter(x => x.status === "open"), ans = all.filter(x => x.status === "answered");
   if(!all.length) return "";
   return `<h3 style="margin:4px 0 10px">Questions from business owners ${open.length ? chip(open.length + " open","purple") : ""}</h3>
   <div class="grid" style="margin-bottom:22px">${open.map(x => { const sp = sup(x.sid), who = P.people[x.from] || { name:"Owner" };
@@ -329,7 +339,7 @@ function vItem({ s, f, t }){
     <p class="small ink2" style="margin-top:8px">${h(reason)}</p>
     <div class="grid ${older.length ? "g2" : ""}" style="margin:12px 0">${older.map(o => `<div class="callout"><div class="eyebrow">Original · ${h(E.DOCS[o.doc].title)} cl. ${h(o.cl)}</div><span style="font-family:Georgia,serif;font-size:14px">"…${h(o.q)}…"</span></div>`).join("")}
       <div class="callout ai"><div class="eyebrow">Pulse's reading · ${h(E.DOCS[x.doc].title)} cl. ${h(x.cl)}</div><span style="font-family:Georgia,serif;font-size:14px">"…${h(x.q)}…"</span></div></div>
-    <div class="row"><button class="btn pri sm" data-ok="${s.id}.${f}">Confirm ${h(val)}</button><button class="btn sec sm" data-where="${x.doc}|${s.terms.indexOf(x)}">Read full clause</button><button class="btn ghost sm" data-ok="${s.id}.${f}" data-msg="Escalated: Pulse keeps the stricter reading until resolved">Not sure: keep the stricter reading</button></div></div>`;
+    <div class="row"><button class="btn pri sm" data-ok="${s.id}.${f}">${("Confirm " + val).length <= 24 ? "Confirm " + h(val) : "Confirm this reading"}</button><button class="btn sec sm" data-where="${x.doc}|${s.terms.indexOf(x)}">Read full clause</button><button class="btn ghost sm" data-ok="${s.id}.${f}" data-msg="Escalated: Pulse keeps the stricter reading until resolved">Not sure: keep the stricter reading</button></div></div>`;
 }
 
 /* ───────── FINANCE (Meera) ───────── */
@@ -476,7 +486,7 @@ let mailSel = null, replyMode = null;
 function supplierView(){
   const sent = Object.entries(E.S.decisions).filter(([id, d]) => d.draft && !/^\(No message/.test(d.draft.split("\n\n").slice(1).join("")));
   const head = `<div class="pagehead"><div><div class="eyebrow">External · supplier's inbox</div><h1>What the supplier receives</h1><p>The supplier sees only what Vyom chooses to send: a clear message with the exact contract clauses attached, so there's no argument about what was agreed. They can acknowledge, propose an alternative or ask a question.</p></div></div>`;
-  if(!sent.length) return head + `<div class="card pad" style="text-align:center;padding:40px"><h3>No messages yet</h3><p class="muted" style="margin:8px 0 16px">Approve a renewal packet as Priya, then come back here to see it from the supplier's side.</p><button class="btn pri" data-goto="packet-talentbridge" data-persona="priya">Open TalentBridge's packet as Priya →</button></div>`;
+  if(!sent.length) return head + `<div class="card pad" style="text-align:center;padding:40px"><h3>No messages yet</h3><p class="muted" style="margin:8px 0 16px">Approve a renewal packet as Priya, then come back here to see it from the supplier's side.</p><button class="btn pri" data-goto="packet-cleanspace" data-persona="priya">Open CleanSpace's packet as Priya →</button></div>`;
   if(!mailSel || !E.S.decisions[mailSel]) mailSel = sent[0][0];
   const s = sup(mailSel), d = E.S.decisions[mailSel], T = E.terms(s), rep = (E.S.replies || {})[mailSel];
   const lines = d.draft.split("\n"); const subj = (lines.find(l => /^Subject:/.test(l)) || "Subject: Message from Vyom").replace("Subject: ", "");
@@ -519,15 +529,16 @@ function bind(r){
     const sp = sup(q.sid), who = P.people[q.from] || { name:"there" }, first = who.name.split(" ")[0];
     b.disabled = true; b.textContent = "Drafting…";
     try { const docs = sp.docs.map(d => E.DOCS[d]).map(d => `=== ${d.title} (dated ${E.fmtD(d.effective)}) ===\n${d.text}`).join("\n\n");
-      const out = await E.ask(`You are Rahul Sen, commercial counsel at Vyom Technologies. Draft a short, friendly reply (3 to 5 sentences) to ${first}, a business owner who asked about the ${sp.name} contract. Base it ONLY on the contract text below; cite clauses like (cl. 7.1). If the contract doesn't settle it, say what it does say, what you'd check next, and that you'll confirm before anything goes to the supplier. Sign off as Rahul. No em dashes.\n\nQUESTION: ${q.q}\n\nCONTRACT:\n${docs.slice(0, 40000)}`, { modelTier:"quick" });
+      const role = (q.to || "rahul") === "priya" ? "Priya Nair, category manager in Procurement" : "Rahul Sen, commercial counsel"; const signer = (q.to || "rahul") === "priya" ? "Priya" : "Rahul";
+      const out = await E.ask(`You are ${role} at Vyom Technologies. Draft a short, friendly reply (3 to 5 sentences) to ${first}, a business owner who asked about the ${sp.name} contract. Base it ONLY on the contract text below; cite clauses like (cl. 7.1). If the contract doesn't settle it, say what it does say, what you'd check next, and that you'll confirm before anything goes to the supplier. Sign off as ${signer}. No em dashes.\n\nQUESTION: ${q.q}\n\nCONTRACT:\n${docs.slice(0, 40000)}`, { modelTier:"quick" });
       ta.value = out.text.trim(); }
-    catch(err){ const cx = String(q.context || "").replace(/Want me to send it to Rahul in Legal\?|I can send this to Rahul in Legal with one tap\.?|I can't answer that from the terms Pulse has extracted\.?/g, "").trim();
-      ta.value = `Hi ${first}, thanks for checking with me. ${cx.length > 20 ? "Pulse's reading is right as far as the contract goes: " + cx + " " : ""}I'll review the ${sp.name} agreement on this point and confirm the position in writing before anything goes to the supplier. Rahul`; }
+    catch(err){ let cx = String(q.context || "").trim(); if(/send (it|this) to|Want me to|don't cover|don't settle|can't answer/i.test(cx)) cx = "";
+      ta.value = `Hi ${first}, thanks for checking with me. ${cx.length > 20 ? "Pulse's reading is right as far as the contract goes: " + cx + " " : ""}${(q.to || "rahul") === "priya" ? `I'll check this with ${sp.name} directly and come back to you before the renewal decision. Priya` : `I'll review the ${sp.name} agreement on this point and confirm the position in writing before anything goes to the supplier. Rahul`}`; }
     b.disabled = false; b.textContent = "Draft a reply with AI"; ta.focus(); });
   on("[data-lqview]", "click", e => { const q = (E.S.legal || []).find(x => x.id === e.currentTarget.dataset.lqview); if(!q) return; selectThreadFor(q); });
   on("[data-lqsend]", "click", e => { const id = e.currentTarget.dataset.lqsend, ta = document.getElementById("lqa-" + id), v = ta ? ta.value.trim() : "";
     if(!v){ A().toast("Write a short reply first."); return; }
-    const q = (E.S.legal || []).find(x => x.id === id); if(!q) return; q.status = "answered"; q.answer = v; q.by = "rahul"; E.save();
+    const q = (E.S.legal || []).find(x => x.id === id); if(!q) return; q.status = "answered"; q.answer = v; q.by = q.to || "rahul"; E.save();
     const who = P.people[q.from]; A().toast(`Reply sent to ${who ? who.name.split(" ")[0] : "the owner"}'s Slack thread.`); A().render(); });
   function selectThreadFor(q){ thread[q.from] = q.sid; A().go("inbox", q.from); }
   on("[data-ok]", "click", e => { const k = e.currentTarget.dataset.ok, msg = e.currentTarget.dataset.msg; if(msg){ A().toast(msg + "."); if(/clean copy/.test(msg)) return; if(/stricter/.test(msg)) return; } E.S.verified[k] = "Rahul Sen"; E.save(); A().toast("Confirmed. Deadlines and packets now use the verified term."); A().render(); });
@@ -549,7 +560,7 @@ function bindPacket(s){
   const $ = id => document.getElementById(id);
   document.querySelectorAll("[data-opt]").forEach(el => { const f = () => { if(E.S.decisions[s.id]) return; sel[s.id] = el.dataset.opt; A().render(); }; el.onclick = f; el.onkeydown = e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); f(); } }; });
   if($("reassign")) $("reassign").onclick = () => { E.S.reassigned[s.id] = "arjun"; E.S.nudged[s.id] = 1; E.save(); A().toast("Arjun is now the owner. His check-in is on its way."); A().render(); };
-  if($("nudge")) $("nudge").onclick = () => { E.S.nudged[s.id] = 1; E.save(); A().toast(`Check-in sent to ${E.ownerOf(s).name}.`); A().render(); };
+  if($("nudge")) $("nudge").onclick = () => { const was = ciSent(s); E.S.nudged[s.id] = 1; E.save(); A().toast(was ? `Reminder sent to ${E.ownerOf(s).name}.` : `Check-in sent to ${E.ownerOf(s).name}.`); A().render(); };
   if($("approve")) $("approve").onclick = () => { const opts = E.options(s); const op = opts.find(x => x.key === (sel[s.id] || opts.rec)); const c = E.clock(s); const to = (E.terms(s).noticeHow || {}).cur;
     A().modal(`<div class="eyebrow">Confirm before sending</div><h3>${h(op.title)}</h3>
       <div class="check" style="margin-top:12px"><i>✓</i><span>To: ${h(to ? to.v : "supplier")}</span></div>
@@ -600,7 +611,8 @@ Rules:
 - Answer in 2 to 4 plain sentences and cite clauses like (cl. 2.1).
 - If the answer is stated in the documents, give it.
 - If it is not stated but can be worked out from the text, begin with "Not stated directly. Worked out:" and show the working with clause numbers.
-- If it cannot be answered from these documents, or needs a legal judgement, say so in one sentence and end your reply with the marker [LEGAL].
+- If it needs a legal judgement (liability, damages, rights, disputes, breach, what a clause legally means), say so in one sentence and end your reply with the marker [LEGAL].
+- If it is an operational or commercial question the contract doesn't answer (staffing, performance, supplier pricing talks, how things work day to day), say the contract doesn't cover it and end your reply with the marker [PROC].
 - If the person asks you to check with Legal or a lawyer, say you can send the question to Rahul in Legal with one tap, and end your reply with [LEGAL].
 - Where an amendment changes a clause, the newer wording applies.
 
@@ -611,12 +623,14 @@ CONTRACT DOCUMENTS:
 ${docs.slice(0, 40000)}
 ${hist ? `\nCONVERSATION SO FAR:\n${hist}\n` : ""}
 QUESTION: ${qv}`, { modelTier:"quick" });
-      let t = out.text; item.legal = /\[LEGAL\]/.test(t) || wantsLegal; t = t.replace(/\[LEGAL\]/g, "").trim();
+      let t = out.text; item.legal = /\[(LEGAL|PROC)\]/.test(t) || wantsLegal; item.route = /\[LEGAL\]/.test(t) || wantsLegal ? "rahul" : "priya"; t = t.replace(/\[(LEGAL|PROC)\]/g, "").trim();
       item.a = E.md(t);
     } catch(e){
-      if(wantsLegal){ item.a = "I can send this to Rahul in Legal with one tap."; item.legal = true; }
+      const legalish = /liab|damage|indemn|breach|dispute|sue|lawsuit|court|law|legal|rights?\b|penalt|terminat|insur|claim/i.test(qv);
+      if(wantsLegal){ item.a = "I can send this to Rahul in Legal with one tap."; item.legal = true; item.route = "rahul"; }
       else if(local) item.a = local;
-      else { item.a = "I can't answer that from the terms Pulse has extracted. Want me to send it to Rahul in Legal?"; item.legal = true; }
+      else if(legalish){ item.a = "That needs a legal view, and the terms Pulse has extracted don't settle it. Want me to send it to Rahul in Legal?"; item.legal = true; item.route = "rahul"; }
+      else { item.a = "The contract terms Pulse holds don't cover that; it's a question for Procurement, who manage the supplier day to day. Want me to send it to Priya?"; item.legal = true; item.route = "priya"; }
     }
     E.save(); A().render(); const ch = document.getElementById("chat"); if(ch) ch.scrollTop = ch.scrollHeight; };
   { const ch = document.getElementById("chat"); if(ch && ((E.S.qa || {})[s.id] || []).length) ch.scrollTop = ch.scrollHeight; }
@@ -627,12 +641,31 @@ QUESTION: ${qv}`, { modelTier:"quick" });
     const rest = q.replace(/[,.;]?\s*(can you |could you |please )?(ask|check with|confirm with|send (it|this) to|loop in|escalate to)( the)? (legal|lawyer|counsel|rahul)( team)?( and get back to me)?[.!]?/ig, "").trim();
     if(rest.length >= 12) q = rest; else if(k > 0) q = log[k - 1].q;
     const id = "lq" + Date.now().toString(36);
-    E.S.legal = (E.S.legal || []).concat([{ id, sid:s.id, from:E.S.persona, q, context:(q === (log[k - 1] || {}).q && it.q !== q) ? strip2(log[k - 1].a) : strip2(it.a), status:"open" }]);
-    it.sent = id; E.save(); A().toast("Sent to Rahul in Legal. His reply will appear in this thread."); A().render(); });
+    E.S.legal = (E.S.legal || []).concat([{ id, sid:s.id, from:E.S.persona, to:it.route || "rahul", q, context:(q === (log[k - 1] || {}).q && it.q !== q) ? strip2(log[k - 1].a) : strip2(it.a), status:"open" }]);
+    it.sent = id; E.save(); A().toast(`Sent to ${ROUTE[it.route || "rahul"].short}. The reply will appear in this thread.`); A().render(); });
   const b = document.getElementById("askcb"); if(b) b.onclick = ask;
   const i = document.getElementById("askc"); if(i) i.onkeydown = e => { if(e.key === "Enter") ask(); };
 }
 
+/* without live AI: answer the common "about one supplier" questions straight from the stored terms */
+function quickAnswer(q){
+  const x = q.toLowerCase(), all = deep().concat(P.portfolio);
+  const s = all.find(sp => x.includes(sp.name.toLowerCase())) || all.find(sp => { const w = sp.name.toLowerCase().split(/\s+/)[0]; return w.length >= 4 && new RegExp("\\b" + w.replace(/[^a-z0-9]/g, "") + "\\b").test(x); });
+  if(!s) return null;
+  const c = E.clock(s), o = E.ownerOf(s), T = s.light ? {} : E.terms(s);
+  const cite = f => T[f] ? `<div class="meta" style="margin-top:4px">${where(s, T[f].cur)}</div>` : "";
+  const dl = c.evergreen ? `It rolls monthly; ending it takes ${c.notice} days' notice.` : `Its current term ends <b>${E.fmtD(c.periodEnd)}</b>; to stop renewal Vyom must give ${c.notice} days' notice, by <b>${E.fmtD(c.deadline)}</b>${c.days != null ? ` (${c.days < 0 ? Math.abs(c.days) + " days ago" : c.days + " days from now"})` : ""}.`;
+  const light = s.light ? `<p class="small muted" style="margin-top:8px">${h(s.name)} came from the old tracker, so Pulse holds only its dates, notice period, owner and value. Read the contract itself in <a href="#add">Add a contract</a> to get the rest.</p>` : "";
+  let a;
+  if(/who|owner|responsible|manag/.test(x)) a = `<b>${h(o.name)}</b>${o.left ? " (has left Vyom; the contract has no owner)" : ""} owns ${h(s.name)}.`;
+  else if(/exit|cancel|terminat|get out|leave early|end it early/.test(x)) a = T.tfc ? `Exit early: <b>${h(T.tfc.cur.v)}</b>.${cite("tfc")}<p style="margin-top:6px">${dl}</p>` : `${dl}`;
+  else if(/price|increase|rise|hike|cap|cost more/.test(x)) a = T.cap ? `Price rises: <b>${h(T.cap.cur.v)}</b>.${cite("cap")}` : `Pulse doesn't hold a price clause for ${h(s.name)}.`;
+  else if(/credit|sla|service level|penalt/.test(x)) a = T.credit ? `Service credits: <b>${h(T.credit.cur.v)}</b>.${cite("credit")}${T.sla ? `<p style="margin-top:6px">Service level: ${h(T.sla.cur.v)}</p>` : ""}` : `Pulse doesn't hold service-credit terms for ${h(s.name)}.`;
+  else if(/pay|invoice/.test(x)) a = T.pay ? `Payment terms: <b>${h(T.pay.cur.v)}</b>.${cite("pay")}` : `Pulse doesn't hold payment terms for ${h(s.name)}.`;
+  else if(/spend|value|cost|worth|how much/.test(x)) a = `${h(s.name)} is worth about <b>${E.inr(s.annual)}</b> a year.`;
+  else a = `${dl} ${T.notice ? cite("notice") : ""}`;
+  return `<div class="row between"><b style="font-weight:600">${h(s.name)}</b>${s.light ? chip("tracker import","line") : `<a class="small" href="#c-${s.id}">Open the contract →</a>`}</div><div style="margin-top:6px">${a}</div>${light}`;
+}
 function bindAsk(){
   window.PX.bindShock();
   const run = async (qv, pre) => { const card = { html:"" }; askLog.unshift(card);
@@ -641,7 +674,9 @@ function bindAsk(){
     if(local) return;
     try { const ctx = deep().map(s => window.PD.context(s)).join("\n\n"); const out = await E.ask(`You answer questions about a company's supplier contracts. Use ONLY the extracted terms below. For every supplier you mention, cite it as [supplier name, document cl. X]. If a supplier's terms don't cover the question, say so. Be concise: a one-sentence answer first, then a short bullet per relevant supplier.\n\n${ctx}\n\nQuestion: ${qv}`, { modelTier:"default", onText: ({ text }) => { const el = document.querySelector("#answers .ans"); if(el) el.innerHTML = E.md(text); } });
       card.html = `<div class="card pad"><div class="row between"><div><div class="eyebrow">You asked</div><h3>${h(qv)}</h3></div><span class="badge-ai">Live AI</span></div><div class="mdx" style="margin-top:10px">${E.md(out.text)}</div><p class="small muted" style="margin-top:8px">Answered from the six fully read contracts. Click a supplier in Contracts to see each clause.</p></div>`; }
-    catch(e){ const guess = /tariff|fuel|duty|surcharge|pass/i.test(qv) ? 0 : /exit|terminat|cancel|30 days/i.test(qv) ? 1 : /credit|sla|service level/i.test(qv) ? 2 : /cap|increase|overbill|invoice|price/i.test(qv) ? 3 : null;
+    catch(e){ const qa = quickAnswer(qv);
+      if(qa){ card.html = `<div class="card pad"><div class="eyebrow">You asked</div><h3>${h(qv)}</h3><div class="callout" style="margin:10px 0">Answered from the terms Pulse holds (live AI is off, so wording is fixed).</div>${qa}</div>`; A().render(); return; }
+      const guess = /tariff|fuel|duty|surcharge|pass/i.test(qv) ? 0 : /exit|terminat|cancel|30 days/i.test(qv) ? 1 : /credit|sla|service level/i.test(qv) ? 2 : /cap|increase|overbill|invoice|price/i.test(qv) ? 3 : null;
       card.html = `<div class="card pad"><div class="eyebrow">You asked</div><h3>${h(qv)}</h3><div style="margin-top:10px">${guess != null ? `<div class="callout" style="margin-bottom:10px">Live AI isn't available in this view, so here is the closest stored answer.</div>${window.PD.preset(guess)}` : `<div class="callout">Live AI isn't available in this view. Try one of the suggested questions; they're answered directly from the extracted terms.</div>`}</div></div>`; }
     A().render(); };
   const f = document.getElementById("askf"); if(f) f.onsubmit = e => { e.preventDefault(); const v = document.getElementById("askq").value.trim(); if(v) run(v); };
@@ -660,7 +695,7 @@ function bindAdd(){
     const box = $("addres"); if(box) box.innerHTML = `<h3>2. What Pulse found</h3><div class="callout ai" style="margin-top:12px"><div class="eyebrow">${mode === "rules" ? "Reading with the basic reader…" : "Reading the contract…"}</div><span id="prog">Starting</span></div>`;
     try { addResult = await window.PD.extract(addText, { mode, onText: ({ text }) => { const p = document.getElementById("prog"); if(p) p.textContent = `Live AI is extracting terms… ${text.length} characters received`; } }); }
     catch(e){ addResult = null; A().toast("Something went wrong. Please try again."); }
-    addBusy = false; A().render(); const r = $("addres"); if(r) r.scrollIntoView({ block:"start", behavior:"smooth" }); if(window.PT) window.PT.after(); };
+    addBusy = false; if(addResult){ E.S.readOne = 1; E.save(); } A().render(); const r = $("addres"); if(r) r.scrollIntoView({ block:"start", behavior:"smooth" }); if(window.PT) window.PT.after(); };
   $("extract").onclick = () => run("auto");
   $("extractRules").onclick = () => run("rules");
   /* generator */

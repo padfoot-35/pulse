@@ -20,7 +20,7 @@ function hero(){
     <div><span class="pill">Concept prototype · Stage 3, intelligent repository</span>
     <h1>Every supplier contract, decided before the deadline.</h1>
     <p class="lede">Pulse reads every contract and amendment, turns them into cited terms, and gives the person who owns each supplier a 60-second say before money moves. It starts with renewals, the one moment where auto-renewals, missed service levels and wrong invoices all meet.</p>
-    <div class="row"><button class="btn pri" ${go("radar","priya")}>Try the product →</button><button class="btn sec" style="background:transparent;color:#f5f6f6;border-color:#5d939a" data-video="1">▶ Watch the 4-minute walkthrough</button><button class="btn ghost" style="color:#cfe0e2" data-jump="why">Read the case ↓</button></div>
+    <div class="row"><button class="btn pri" ${go("radar","priya")}>Try the product →</button><button class="btn sec" style="background:transparent;color:#f5f6f6;border-color:#5d939a" data-video="1">▶ Watch the video (4 min)</button><button class="btn ghost" style="color:#cfe0e2" data-jump="why">Read the case ↓</button></div>
     <p class="small heroalt">Have a contract to hand, or none at all? <button class="linkbtn" data-start="add" data-sp="priya">Test Pulse on a contract</button>: upload one, or generate a realistic one for any industry.</p></div>
     <div class="heroCard" aria-label="Preview of an owner check-in">
       <div class="chat-h" style="border-radius:14px 14px 0 0"><b># Pulse</b><span style="opacity:.75">· Kavya Rao</span></div>

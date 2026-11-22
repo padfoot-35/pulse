@@ -35,8 +35,8 @@ const GUIDE = [
   { p:"supplier", r:"supplier", t:"See it from the supplier's side", w:"Supplier · external" },
   { p:"priya", r:"packet-lumen", t:"Lumen: the owner left, so reassign it", w:"Priya · Procurement" },
   { p:"meera", r:"finance", t:"Catch invoices that break the contract", w:"Meera · Finance" },
-  { p:"priya", r:"ask", t:"Simulate a tariff shock", w:"Any role" },
-  { p:"priya", r:"add", t:"Try live AI on a contract of your own", w:"Any role" },
+  { p:"priya", r:"ask", t:"Simulate a tariff shock", w:"Priya · Procurement" },
+  { p:"priya", r:"add", t:"Test Pulse on a contract (yours or generated)", w:"Priya · Procurement" },
   { p:"priya", r:"log", t:"See decisions, value and the north star", w:"Procurement · Finance" }
 ];
 
@@ -95,10 +95,10 @@ const TRY = [
 ];
 function aiPanel(){
   const st = E.aiState;
-  const badge = st === "live" ? `<span class="badge-ai">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking…</span>` : `<span class="badge-ai off">Live AI off</span>`;
-  const line = st === "live" ? "New questions and new contracts get fresh AI answers. Try:" : "Live AI answers new questions and reads any contract. Off, Pulse uses prepared answers. Try:";
+  const badge = st === "live" ? `<span class="badge-ai">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking…</span>` : `<span class="badge-ai off">Live AI off · prepared answers</span>`;
+  const line = st === "live" ? "New questions and new contracts get fresh AI answers. Try:" : "Live AI answers new questions and reads any contract. Without it, Pulse uses prepared answers. Try:";
   const btn = st === "live" || st === "checking" ? "" : ON_CLAUDE ? `<button class="btn ai sm aion" id="aion">Turn on live AI</button>` : `<a class="btn ai sm aion" href="${CLAUDE_URL}" target="_blank" rel="noopener">Open the live-AI version ↗</a>`;
-  return `${badge}${btn}<p class="ailine">${line}</p><ul class="aitry">${TRY.map(([k, t]) => `<li><button data-try="${k}">${t}</button></li>`).join("")}</ul><button class="aiwhat" id="aiwhat">What changes with live AI?</button>`;
+  return `${badge}${btn}<button class="aitoggle" id="aitoggle" aria-expanded="${aiOpen}">${aiOpen ? "Hide" : "What can live AI do? ▸"}</button>${aiOpen ? `<p class="ailine">${line}</p><ul class="aitry">${TRY.map(([k, t]) => `<li><button data-try="${k}">${t}</button></li>`).join("")}</ul><button class="aiwhat" id="aiwhat">What changes with live AI?</button>` : ""}`;
 }
 function aiWhat(){
   const rows = [["Ask Pulse","Ask anything across all contracts, in your own words, with clause citations","Six prepared questions"],
@@ -120,16 +120,21 @@ function tryAI(k){
   setTimeout(() => { const el = document.querySelector(T[2]); if(!el) return; el.scrollIntoView({ block:"center", behavior:"smooth" });
     el.classList.add("tryhl"); setTimeout(() => el.classList.remove("tryhl"), 2600); if(el.tagName === "INPUT") setTimeout(() => el.focus({ preventScroll:true }), 500); }, 250);
 }
-function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai off" title="This view can't run live AI; stored AI results are shown for the demo contracts">Stored AI results</span>`; }
+function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai off" title="Live AI isn't connected here, so Pulse uses prepared answers">Live AI off · prepared answers</span>`; }
 
 /* ── demo guide: a list in the sidebar + one floating "next step" button ── */
+/* a step counts as done when its action is done, not when its page was opened */
+function doneMap(){ const v = E.S.visited || {}, S = E.S, X = window.PX || {};
+  const ok = [ !!v[0], !!X.obDone, !!v[2], !!S.verified["cleanspace.notice"], !!S.checkins.cleanspace, !!S.decisions.cleanspace,
+    !!v[6] && Object.keys(S.decisions).length > 0, !!S.reassigned.lumen, Object.keys(S.finance || {}).length > 0, !!X.shock, !!S.readOne || (S.added || []).length > 0, !!v[11] && Object.keys(S.decisions).length > 0 ];
+  const m = {}; ok.forEach((x, i) => { if(x) m[i] = 1; }); return m; }
 function guideList(r){
-  const done = E.S.visited || {}, curIdx = GUIDE.findIndex(g => g.r === r && g.p === E.S.persona);
+  const done = doneMap(), curIdx = GUIDE.findIndex(g => g.r === r && g.p === E.S.persona);
   const n = GUIDE.filter((g, i) => done[i]).length;
   return `<div class="sep">Demo path · ${n}/${GUIDE.length}</div><div class="sguide"><ol>${GUIDE.map((g, i) => `<li data-g="${i}" class="${done[i] ? "done" : ""} ${i === curIdx ? "cur" : ""}"><span class="n">${done[i] ? "✓" : i + 1}</span><span>${h(g.t)}</span></li>`).join("")}</ol></div>`;
 }
 function nextStep(r){
-  const done = E.S.visited || {}, curIdx = GUIDE.findIndex(g => g.r === r && g.p === E.S.persona);
+  const done = doneMap(), curIdx = GUIDE.findIndex(g => g.r === r && g.p === E.S.persona);
   let nx = GUIDE.findIndex((g, i) => !done[i] && i !== curIdx); if(nx < 0) return null; return { nx, g:GUIDE[nx], n:GUIDE.filter((g, i) => done[i]).length };
 }
 function guide(r){
@@ -173,15 +178,16 @@ function signIn(){
     if(ok){ close(); toast("Live AI is on. Try one of the shortcuts in the left panel."); } else location.reload(); };
 }
 function bindAI(){
+  const tg = $("#aitoggle"); if(tg) tg.onclick = () => { aiOpen = !aiOpen; const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } };
   document.querySelectorAll("[data-try]").forEach(b => b.onclick = () => tryAI(b.dataset.try));
   const w = $("#aiwhat"); if(w) w.onclick = aiWhat;
   const on = $("#aion"); if(on && on.tagName === "BUTTON") on.onclick = async () => {
     on.disabled = true; on.textContent = "Asking Claude…";
     const ok = await E.retryAI();
-    if(ok) toast("Live AI is on. Try one of the shortcuts below."); else signIn();
+    if(ok) toast("Live AI is on. Open “What can live AI do?” for ideas to try."); else signIn();
   };
 }
-let switchedTo = null, justSwitched = false;
+let switchedTo = null, justSwitched = false, aiOpen = false;
 function render(){
   const r = route(), app = $("#app");
   if(lastRoute !== null && r !== lastRoute && !(window.PT && window.PT.on)) close();
@@ -224,6 +230,6 @@ window.PA = { h, $, byId, go, toast, modal, close, showClause, docHTML, render, 
 let fromCopy = false;
 if(location.hash === "#live"){ fromCopy = true; E.S.tourSeen = 1; E.save(); try { history.replaceState(null, "", location.pathname + location.search + "#radar"); } catch(e){ location.hash = "radar"; } }
 document.addEventListener("DOMContentLoaded", () => { render();
-  if(fromCopy){ const hl = () => { const ap = $("#aip"); if(ap){ ap.classList.add("tryhl"); setTimeout(() => ap.classList.remove("tryhl"), 3200); } };
+  if(fromCopy){ aiOpen = true; { const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } } const hl = () => { const ap = $("#aip"); if(ap){ ap.classList.add("tryhl"); setTimeout(() => ap.classList.remove("tryhl"), 3200); } };
     E.aiReady.then(() => { hl(); toast(E.aiState === "live" ? "You're on the live-AI version, and live AI is on. Try the shortcuts in the left panel." : "You're on the live-AI version. Click “Turn on live AI” in the left panel to start."); }); } });
 })();
