@@ -77,7 +77,7 @@ function sidebar(r){
     verify: window.PV.verifyItems().length + (E.S.legal || []).filter(x => x.status === "open").length, inbox: window.PV.myThreads(p).filter(t => !E.S.checkins[t.id]).length };
   return `<aside class="side"><div class="pp"><span class="av lg ${OWNERS.includes(p)?"p":""}">${me.init}</span><span class="nm2"><b>${h(me.name)}</b><span>${h(me.role)}</span></span></div>
   ${navFor(p).map(([k, l]) => `<a class="nav ${r === k || r.startsWith(k.slice(0,3)+"-") && k==="contracts" ? "on" : ""}" href="#${k}">${l}${counts[k] ? `<span class="ct">${counts[k]}</span>` : ""}</a>`).join("")}
-  <div class="sep">Live AI</div><div class="aip" id="aip">${aiPanel()}</div>
+  <div class="sep">AI in Pulse</div><div class="aip" id="aip">${aiPanel()}</div>
   ${guideList(r)}
   <p class="small muted" style="padding:16px 10px 0;font-size:12px;line-height:1.4">Concept prototype for a Sirion assessment. Not a Sirion product. All companies, people and contracts are fictional.</p>
   <div class="sep">Try another role</div>
@@ -97,7 +97,7 @@ function aiPanel(){
   /* live AI is automatic: where Claude provides it, it's simply on; elsewhere Pulse quietly uses prepared answers (no button, no detour) */
   const st = E.aiState;
   if(st === "checking") return `<span class="badge-ai off">Checking…</span>`;
-  if(st !== "live") return `<span class="badge-ai off" title="Every step works with answers prepared from the same contracts">Prepared answers</span>`;
+  if(st !== "live") return `<span class="badge-ai" title="AI readings of the contracts and AI answers were run in advance for this demo">✦ AI · pre-run for this demo</span><p class="small muted" style="margin:6px 2px 0;line-height:1.35">AI reads each contract and drafts answers; code checks every date and amount.</p>`;
   return `<span class="badge-ai">● Live AI on</span><button class="aitoggle" id="aitoggle" aria-expanded="${aiOpen}">${aiOpen ? "Hide" : "What can live AI do? ▸"}</button>${aiOpen ? `<p class="ailine">New questions and new contracts get fresh AI answers. Try:</p><ul class="aitry">${TRY.map(([k, t]) => `<li><button data-try="${k}">${t}</button></li>`).join("")}</ul><button class="aiwhat" id="aiwhat">What changes with live AI?</button>` : ""}`;
 }
 function aiWhat(){
@@ -119,7 +119,7 @@ function tryAI(k){
   setTimeout(() => { const el = document.querySelector(T[2]); if(!el) return; el.scrollIntoView({ block:"center", behavior:"smooth" });
     el.classList.add("tryhl"); setTimeout(() => el.classList.remove("tryhl"), 2600); if(el.tagName === "INPUT") setTimeout(() => el.focus({ preventScroll:true }), 500); }, 250);
 }
-function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai off" title="Every step works with answers prepared from the same contracts">Prepared answers</span>`; }
+function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai" title="AI readings and answers were run in advance for this demo">✦ AI · pre-run</span>`; }
 
 /* ── demo guide: a list in the sidebar + one floating "next step" button ── */
 /* a step counts as done when its action is done, not when its page was opened */
