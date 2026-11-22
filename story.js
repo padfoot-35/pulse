@@ -4,9 +4,9 @@ const P = window.PULSE, E = window.PE;
 const h = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SECTIONS = [["why","Why this stage"],["problem","The problem"],["vyom","Vyom (simulated)"],["people","Personas"],["stake","Stakeholders"],["how","How it works"],["road","Roadmap & trust"],["land","Landscape"],["metrics","Success metrics"],["assume","Assumptions"],["sources","Sources"]];
 function video(){
-  const d = window.PA.modal(`<div class="row between" style="margin-bottom:12px;gap:12px"><div><div class="eyebrow">Narrated walkthrough · 3 min 50 s · sound on</div><h3>One renewal, end to end, across five people</h3></div><button class="btn sec sm" data-close>Close</button></div>
+  const d = window.PA.modal(`<div class="row between" style="margin-bottom:12px;gap:12px"><div><div class="eyebrow">Narrated walkthrough · 3 min 36 s · sound on</div><h3>One renewal, end to end, across five people</h3></div><button class="btn sec sm" data-close>Close</button></div>
     <video class="demovid" src="demo.mp4" poster="demo-poster.jpg" controls autoplay playsinline preload="metadata"></video>
-    <div class="row between" style="margin-top:12px;gap:12px;flex-wrap:wrap"><span class="small muted">Screen recorded from this prototype, unedited. Voiceover is AI-generated. Synthetic company and data; AI answers shown are the stored ones.</span><button class="btn pri sm" id="vidtry">Now try it yourself →</button></div>`);
+    <div class="row between" style="margin-top:12px;gap:12px;flex-wrap:wrap"><span class="small muted">Recorded from this prototype, with an opening and closing card added. Voiceover is AI-generated. Synthetic company and data; AI answers shown are the prepared ones.</span><button class="btn pri sm" id="vidtry">Now try it yourself →</button></div>`);
   d.querySelector(".modal").classList.add("vidmodal");
   const v = d.querySelector("video"); if(v){ const p = v.play(); if(p && p.catch) p.catch(() => {}); }
   d.querySelector("#vidtry").onclick = () => { window.PA.close(); window.PA.go("radar", "priya"); };
