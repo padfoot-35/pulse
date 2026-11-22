@@ -1,0 +1,169 @@
+/* Pulse: shell, routing, shared UI. Product views live in views.js; the narrative in story.js. */
+(function(){
+const P = window.PULSE, E = window.PE;
+const $ = s => document.querySelector(s);
+const h = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const byId = id => P.suppliers.find(s => s.id === id) || P.portfolio.find(s => s.id === id);
+
+const PERSONAS = [
+  { id:"priya", home:"radar", group:"Procurement" },
+  { id:"kavya", home:"inbox", group:"Supplier owners (business)" },
+  { id:"arjun", home:"inbox", group:"Supplier owners (business)" },
+  { id:"ananya", home:"inbox", group:"Supplier owners (business)" },
+  { id:"sneha", home:"inbox", group:"Supplier owners (business)" },
+  { id:"rahul", home:"verify", group:"Legal" },
+  { id:"meera", home:"finance", group:"Finance" },
+  { id:"supplier", home:"supplier", group:"External" }
+];
+const OWNERS = ["kavya","arjun","ananya","sneha"];
+const NAV = {
+  priya:[["radar","Renewal radar"],["contracts","Contracts"],["onboard","Onboard a shared drive"],["ask","Ask Pulse"],["add","Add a contract"],["log","Decisions & value"]],
+  owner:[["inbox","My check-ins"],["mine","My suppliers"],["ask","Ask Pulse"]],
+  rahul:[["verify","Verification queue"],["contracts","Contracts"],["onboard","Onboard a shared drive"],["ask","Ask Pulse"],["add","Add a contract"]],
+  meera:[["finance","Commitments & invoices"],["contracts","Contracts"],["ask","Ask Pulse"],["log","Decisions & value"]],
+  supplier:[["supplier","Messages from Vyom"]]
+};
+const navFor = p => NAV[p] || NAV.owner;
+
+const GUIDE = [
+  { p:"priya", r:"radar", t:"See every renewal that needs a decision, ranked", w:"Priya · Procurement" },
+  { p:"priya", r:"onboard", t:"Watch a messy shared drive become the repository", w:"Priya · Procurement" },
+  { p:"priya", r:"c-cleanspace", t:"Open CleanSpace: find the amendment trap", w:"Priya · Procurement" },
+  { p:"rahul", r:"verify", t:"Confirm the 90-day notice clause", w:"Rahul · Legal" },
+  { p:"kavya", r:"inbox", t:"Answer the 60-second check-in", w:"Kavya · supplier owner" },
+  { p:"priya", r:"packet-cleanspace", t:"Review the packet and approve the notice", w:"Priya · Procurement" },
+  { p:"supplier", r:"supplier", t:"See it from the supplier's side", w:"Supplier · external" },
+  { p:"priya", r:"packet-lumen", t:"Lumen: the owner left, so reassign it", w:"Priya · Procurement" },
+  { p:"meera", r:"finance", t:"Catch invoices that break the contract", w:"Meera · Finance" },
+  { p:"priya", r:"ask", t:"Simulate a tariff shock", w:"Any role" },
+  { p:"priya", r:"add", t:"Try live AI on a contract of your own", w:"Any role" },
+  { p:"priya", r:"log", t:"See decisions, value and the north star", w:"Procurement · Finance" }
+];
+
+/* ── routing ── */
+function route(){ const r = (location.hash || "#story").slice(1); return r || "story"; }
+function go(r, persona){ if(persona) setPersona(persona, true); if(location.hash === "#" + r) render(); else location.hash = r; }
+function setPersona(id, silent){ if(E.S.persona !== id) switchedTo = id; E.S.persona = id; E.save(); if(!silent) render(); }
+window.addEventListener("hashchange", render);
+
+/* ── top bar ── */
+function topbar(){
+  const r = route(), story = r === "story", me = P.people[E.S.persona];
+  const groups = [...new Set(PERSONAS.map(p => p.group))];
+  return `<header class="top">
+    <a class="brand" href="#story" aria-label="Pulse home">${logo()}<b>Pulse</b><span>a concept for Sirion</span></a>
+    <nav class="modes" aria-label="Mode"><a href="#story" class="${story?"on":""}">Story</a><a href="#${homeOf(E.S.persona)}" class="${story?"":"on"}">Product</a></nav>
+    <div class="grow"></div>
+    <span class="datechip" title="All dates in the demo are calculated from this day">Demo date · ${E.fmtD(E.TODAY)}</span>
+    ${story ? "" : `<div class="who" id="who"><button aria-haspopup="true" aria-label="Switch persona"><span class="av ${OWNERS.includes(E.S.persona)?"p":""}">${me.init}</span><span class="small" style="text-align:left;line-height:1.2">Viewing as<br><b style="font-weight:600">${h(me.name)}</b></span></button>
+      <div class="menu" role="menu">${groups.map(g => `<div class="lbl">${g}</div>` + PERSONAS.filter(p => p.group === g).map(p => { const pp = P.people[p.id]; return `<button data-persona="${p.id}" class="${p.id===E.S.persona?"on":""}"><span class="av ${OWNERS.includes(p.id)?"p":""}">${pp.init}</span><span><b style="font-weight:600">${h(pp.name)}</b><br><span class="r">${h(pp.role)}</span></span></button>`; }).join("")).join("")}</div></div>
+      <button class="btn-tour" id="tourBtn">Guided tour</button><button class="btn-reset" id="reset" title="Clear demo progress">Reset demo</button>`}
+  </header>`;
+}
+const homeOf = p => (PERSONAS.find(x => x.id === p) || {}).home || "radar";
+function logo(){ return `<svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#0d5e68"/><path d="M4 15h5l2.5-6 4 11 3-8 1.5 3H24" fill="none" stroke="#f5f6f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`; }
+
+/* ── persona strip: who you're playing, their goal and frustration ── */
+function strip(r){ const p = E.S.persona, me = P.people[p], inf = (P.personaInfo || {})[p]; if(!inf) return "";
+  E.S.strip = E.S.strip || {}; if(!E.S.strip[p]){ E.S.strip[p] = r; E.save(); }
+  const mini = E.S.strip[p] !== r;
+  return `<div class="pstrip ${mini ? "mini" : ""} ${justSwitched ? "flash" : ""}"><span class="av ${OWNERS.includes(p) ? "p" : ""}">${me.init}</span><span><b>You're ${h(me.name.split(" ")[0] === "Supplier" ? "a supplier contact" : me.name.split(" ")[0])}</b> · ${h(me.role)}</span>
+    <span class="pk"><span class="pl">Goal</span>${h(inf.goal)}</span><span class="pk"><span class="pl">Frustration today</span>${h(inf.pain)}</span>${mini ? `<button class="pkt" data-stripx aria-expanded="false">Goal and frustration</button>` : ""}${nextMini(r)}</div>`; }
+
+/* ── side nav ── */
+function sidebar(r){
+  const p = E.S.persona, me = P.people[p];
+  const counts = { radar: E.allRows().filter(x => x.c.days != null && x.c.days >= 0 && x.c.days <= 14 && !E.S.decisions[x.s.id]).length,
+    verify: window.PV.verifyItems().length, inbox: window.PV.myThreads(p).filter(t => !E.S.checkins[t.id]).length };
+  return `<aside class="side"><div class="pp"><span class="av lg ${OWNERS.includes(p)?"p":""}">${me.init}</span><span class="nm2"><b>${h(me.name)}</b><span>${h(me.role)}</span></span></div>
+  ${navFor(p).map(([k, l]) => `<a class="nav ${r === k || r.startsWith(k.slice(0,3)+"-") && k==="contracts" ? "on" : ""}" href="#${k}">${l}${counts[k] ? `<span class="ct">${counts[k]}</span>` : ""}</a>`).join("")}
+  <div class="sep">Live AI</div><div style="padding:0 10px" id="aib">${aiBadge()}</div>
+  <p class="aihint" id="aihint">${aiHint()}</p>
+  ${guideList(r)}
+  <p class="small muted" style="padding:16px 10px 0;font-size:12px;line-height:1.4">Concept prototype for a Sirion assessment. Not a Sirion product. All companies, people and contracts are fictional.</p>
+  <div class="sep">Try another role</div>
+  ${PERSONAS.filter(x => x.id !== p).map(x => `<a class="nav" href="#${x.home}" data-persona="${x.id}"><span class="av ${OWNERS.includes(x.id)?"p":""}" style="width:24px;height:24px;font-size:10px">${P.people[x.id].init}</span>${h(P.people[x.id].name.split(" ")[0])}</a>`).join("")}
+  </aside>`;
+}
+const CLAUDE_URL = "https://claude.ai/artifact/QnBrTMmTd8EDzQWVsR9q3q";
+const ON_CLAUDE = !!window.claude;
+function aiHint(){ const st = E.aiState; if(!ON_CLAUDE) return `This copy runs without live AI: every step uses stored answers and the basic reader. <a href="${CLAUDE_URL}" target="_blank" rel="noopener">See it with live AI →</a> (sign in to Claude, click Continue).`; return st === "live" ? "Answers are generated fresh with your Claude account." : st === "off" ? "<b>Signed in to Claude?</b> Reload and click <b>Continue</b> when asked, to turn on live AI. <b>Not signed in?</b> Every step still works with stored answers." : ""; }
+function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai off" title="This view can't run live AI; stored AI results are shown for the demo contracts">Stored AI results</span>`; }
+
+/* ── demo guide: a list in the sidebar + one floating "next step" button ── */
+function guideList(r){
+  const done = E.S.visited || {}, curIdx = GUIDE.findIndex(g => g.r === r && g.p === E.S.persona);
+  const n = GUIDE.filter((g, i) => done[i]).length;
+  return `<div class="sep">Demo path · ${n}/${GUIDE.length}</div><div class="sguide"><ol>${GUIDE.map((g, i) => `<li data-g="${i}" class="${done[i] ? "done" : ""} ${i === curIdx ? "cur" : ""}"><span class="n">${done[i] ? "✓" : i + 1}</span><span>${h(g.t)}</span></li>`).join("")}</ol></div>`;
+}
+function nextStep(r){
+  const done = E.S.visited || {}, curIdx = GUIDE.findIndex(g => g.r === r && g.p === E.S.persona);
+  let nx = GUIDE.findIndex((g, i) => !done[i] && i !== curIdx); if(nx < 0) return null; return { nx, g:GUIDE[nx], n:GUIDE.filter((g, i) => done[i]).length };
+}
+function guide(r){
+  const x = nextStep(r);
+  if(!x) return `<div class="nextbar"><div><span class="k">Demo path complete · ${GUIDE.length} of ${GUIDE.length}</span><b>You've seen every step. The Story has the why and the evidence.</b></div><button class="btn pri" data-g="-1">Back to the story →</button></div>`;
+  return `<div class="nextbar"><div><span class="k">Demo path · ${x.n} of ${GUIDE.length} done · next is step ${x.nx + 1}, as ${h(x.g.w)}</span><b>${h(x.g.t)}</b></div><button class="btn pri" data-g="${x.nx}">Continue →</button></div>`;
+}
+function nextMini(r){ const x = nextStep(r); if(!x) return ""; return `<button class="nextmini" data-g="${x.nx}" title="${h(x.g.t)}"><span>Demo ${x.n}/${GUIDE.length}</span><b>Next: step ${x.nx + 1} →</b></button>`; }
+function markGuide(r){ const i = GUIDE.findIndex(g => g.r === r && g.p === E.S.persona); if(i >= 0 && !E.S.visited[i]){ E.S.visited[i] = 1; E.save(); } }
+
+/* ── modal / toast ── */
+function modal(html){ close(); const d = document.createElement("div"); d.className = "scrim"; d.id = "scrim"; d.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+  d.addEventListener("click", e => { if(e.target === d || e.target.closest("[data-close]")) close(); }); document.body.appendChild(d); return d; }
+function close(){ const d = $("#scrim"); if(d) d.remove(); }
+let tt; function toast(t){ let el = $("#toast"); if(!el){ el = document.createElement("div"); el.className = "toast"; el.id = "toast"; document.body.appendChild(el); } el.textContent = t; el.style.display = "block"; clearTimeout(tt); tt = setTimeout(() => el.style.display = "none", 4200); }
+document.addEventListener("keydown", e => { if(e.key === "Escape") close(); });
+
+/* show me where it says this */
+function docHTML(docId, quote){ const d = E.DOCS[docId]; let t = h(d.text);
+  if(quote){ const q = h(quote); const i = t.indexOf(q); if(i >= 0) t = t.slice(0, i) + `<mark id="hl">${q}</mark>` + t.slice(i + q.length); }
+  return t; }
+function showClause(docId, quote, cl){ const d = E.DOCS[docId];
+  modal(`<div class="row between" style="margin-bottom:10px"><div><div class="eyebrow">${h(d.type)} · effective ${E.fmtD(d.effective)}</div><h3>${h(d.title)}</h3></div><button class="btn sec sm" data-close>Close</button></div>
+    ${cl ? `<p class="small muted">Clause ${h(cl)} · the highlighted text is what Pulse read.</p>` : ""}
+    <div class="card doc" style="max-height:60vh">${docHTML(docId, quote)}</div>`);
+  setTimeout(() => { const m = $("#hl"); if(m) m.scrollIntoView({ block:"center" }); }, 30); }
+
+/* ── render ── */
+let lastRoute = null;
+let switchedTo = null, justSwitched = false;
+function render(){
+  const r = route(), app = $("#app");
+  if(lastRoute !== null && r !== lastRoute && !(window.PT && window.PT.on)) close();
+  if(r !== "story"){
+    const before = E.S.persona;
+    const pid = PERSONAS.find(p => p.home === r);
+    const allowed = navFor(E.S.persona).some(([k]) => k === r) || r.startsWith("c-") || (r === "mine" && OWNERS.includes(E.S.persona));
+    if(!allowed && pid) { E.S.persona = pid.id; E.save(); }
+    else if(!allowed && !r.startsWith("packet-")) { E.S.persona = "priya"; E.save(); }
+    if(r.startsWith("packet-") && E.S.persona !== "priya"){ E.S.persona = "priya"; E.save(); }
+    if(before !== E.S.persona) switchedTo = E.S.persona;
+    justSwitched = !!switchedTo; 
+    markGuide(r);
+  }
+  document.title = r === "story" ? "Pulse: contract renewals, decided on time" : "Pulse";
+  if(r === "story"){ app.innerHTML = topbar() + window.PS.render(); window.PS.bind(); }
+  else { app.innerHTML = topbar() + `<div class="shell">${sidebar(r)}<main class="main" id="main">${strip(r)}${window.PV.view(r)}${guide(r)}</main></div>`; window.PV.bind(r); }
+  const from = lastRoute;
+  if(switchedTo){ const m = P.people[switchedTo]; if(!(window.PT && window.PT.on) && from && from !== "story") toast(`Now viewing as ${m.name.split(" ")[0] === "Supplier" ? "the supplier" : m.name} · ${m.role.split(" · ")[0]}`); switchedTo = null; }
+  bindShell(); if(r !== lastRoute) window.scrollTo(0, 0); lastRoute = r;
+  /* offer the tour at the moment of choosing the product: on every Story → Product switch, or a first direct visit */
+  const enteringProduct = r !== "story" && r === homeOf(E.S.persona) && (from === "story" || (from === null && !E.S.tourSeen));
+  if(window.PT){ if(enteringProduct && !window.PT.on && !document.getElementById("scrim")) setTimeout(() => { if(!window.PT.on) window.PT.welcome(); }, 250); window.PT.after(); }
+}
+function bindShell(){
+  const who = $("#who"); if(who){ who.querySelector("button").onclick = e => { e.stopPropagation(); who.classList.toggle("open"); }; document.addEventListener("click", () => who.classList.remove("open"), { once:true }); }
+  document.querySelectorAll("[data-persona]:not([data-goto])").forEach(b => b.addEventListener("click", e => { e.preventDefault(); const id = b.dataset.persona; if(E.S.persona !== id) switchedTo = id; E.S.persona = id; E.save(); const home = homeOf(id); const r = route();
+    const keep = navFor(id).some(([k]) => k === r); go(keep ? r : home); }));
+  const sx = document.querySelector("[data-stripx]"); if(sx) sx.onclick = () => { const st = sx.closest(".pstrip"); const open = st.classList.toggle("open"); sx.setAttribute("aria-expanded", open); sx.textContent = open ? "Hide" : "Goal and frustration"; };
+  const tb = $("#tourBtn"); if(tb) tb.onclick = () => window.PT.start(0);
+  const rs = $("#reset"); if(rs) rs.onclick = () => { modal(`<h3>Reset the demo?</h3><p class="muted" style="margin-top:8px">This clears everything you did in this browser: check-ins, Legal confirmations, decisions, supplier replies, the shared-drive onboarding, the tariff scenario, and any contracts you generated, read or added. The demo starts again from 22 Nov 2026.</p><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn sec" data-close>Cancel</button><button class="btn pri" id="doreset">Reset</button></div>`); $("#doreset").onclick = () => { E.reset(); close(); go("radar", "priya"); toast("Demo reset."); }; };
+  document.querySelectorAll(".sguide li,.nextbar [data-g],.nextmini").forEach(li => li.onclick = () => { const i = +li.dataset.g; if(i < 0){ go("story"); return; } const s = GUIDE[i]; go(s.r, s.p); });
+  document.querySelectorAll("[data-where]").forEach(b => b.addEventListener("click", e => { e.preventDefault(); const [d, i] = b.dataset.where.split("|"); const s = P.suppliers.find(x => x.terms.some(t => t.doc === d)); const t = s ? s.terms[+i] : null; showClause(d, t ? t.q : null, t ? t.cl : null); }));
+}
+document.addEventListener("ai-state", () => { document.querySelectorAll("#aib,.aib").forEach(el => el.innerHTML = aiBadge()); const hn = document.getElementById("aihint"); if(hn) hn.innerHTML = aiHint(); });
+
+window.PA = { h, $, byId, go, toast, modal, close, showClause, docHTML, render, OWNERS, PERSONAS, aiBadge, setPersona, GUIDE };
+document.addEventListener("DOMContentLoaded", render);
+})();
