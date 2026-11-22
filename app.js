@@ -233,8 +233,15 @@ let fromCopy = false;
 /* every full page load (new visit or reload) starts on the Story, even if the address carries an old page tag (e.g. #radar); only the live-AI link (#live) and Back/Forward skip it */
 (function(){ let nav = ""; try { const e = performance.getEntriesByType("navigation")[0]; nav = e ? e.type : ""; } catch(e){}
   if((nav === "navigate" || nav === "reload") && location.hash && location.hash !== "#live" && location.hash !== "#story"){ try { history.replaceState(null, "", location.pathname + location.search + "#story"); } catch(e){ location.hash = "story"; } } })();
+/* deep links for the submission note: ?s=<section id> opens the Story at that section, ?s=product opens the product */
+let deepSection = null;
+(function(){ let sp = null; try { sp = new URLSearchParams(location.search).get("s"); } catch(e){}
+  if(!sp || !/^[a-z]+$/.test(sp)) return;
+  const tgt = sp === "product" ? "#radar" : "#story"; if(sp !== "product") deepSection = sp;
+  try { history.replaceState(null, "", location.pathname + tgt); } catch(e){ location.hash = tgt.slice(1); } })();
 if(location.hash === "#live"){ fromCopy = true; E.S.tourSeen = 1; E.save(); try { history.replaceState(null, "", location.pathname + location.search + "#radar"); } catch(e){ location.hash = "radar"; } }
 document.addEventListener("DOMContentLoaded", () => { render();
+  if(deepSection){ const jump = () => { const el = document.getElementById(deepSection); if(el) el.scrollIntoView(); }; setTimeout(jump, 150); try { document.fonts.ready.then(() => setTimeout(jump, 200)); } catch(e){} }
   if(fromCopy){ aiOpen = true; { const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } } const hl = () => { const ap = $("#aip"); if(ap){ ap.classList.add("tryhl"); setTimeout(() => ap.classList.remove("tryhl"), 3200); } };
     E.aiReady.then(() => { hl(); toast(E.aiState === "live" ? "You're on the live-AI version, and live AI is on. Try the shortcuts in the left panel." : "You're on the live-AI version. Click “Turn on live AI” in the left panel to start."); }); } });
 })();
