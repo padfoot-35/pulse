@@ -190,7 +190,7 @@ ${text.slice(0, 60000)}`, { modelTier:"default", keepDashes:true, onText: opts &
         const fr = window.PR.fromAI(r); fr.method = "stored"; fr.note = "Stored AI result for this sample contract."; return fr;
       }
       const r = window.PR.rules(text);
-      r.note = e && e.code === "unavailable" ? (window.claude ? "Live AI isn't on in this view (it needs a signed-in Claude session that allows it), so Pulse used its basic reader:" : "This copy runs without live AI, so Pulse used its basic reader:")+" fixed rules that find dates, notice periods, price caps and other standard clauses. It's less flexible than AI on unusual wording, and every quote is still checked against your document." :
+      r.note = e && e.code === "unavailable" ? "Pulse read this with its built-in reader:"+" fixed rules that find dates, notice periods, price caps and other standard clauses. It's less flexible than AI on unusual wording, and every quote is still checked against your document." :
         e && e.code === "timeout" ? "The AI took too long, so Pulse used its basic reader instead." : "The AI's answer couldn't be read, so Pulse used its basic reader instead.";
       return r;
     }

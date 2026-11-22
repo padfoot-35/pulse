@@ -94,11 +94,11 @@ const TRY = [
   ["slack", "Ask from the Slack check-in"]
 ];
 function aiPanel(){
+  /* live AI is automatic: where Claude provides it, it's simply on; elsewhere Pulse quietly uses prepared answers (no button, no detour) */
   const st = E.aiState;
-  const badge = st === "live" ? `<span class="badge-ai">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking…</span>` : `<span class="badge-ai off">Live AI off · prepared answers</span>`;
-  const line = st === "live" ? "New questions and new contracts get fresh AI answers. Try:" : "Live AI answers new questions and reads any contract. Without it, Pulse uses prepared answers. Try:";
-  const btn = st === "live" || st === "checking" ? "" : ON_CLAUDE ? `<button class="btn ai sm aion" id="aion">Turn on live AI</button>` : `<a class="btn ai sm aion" href="${CLAUDE_URL}" target="_blank" rel="noopener">Open the live-AI version ↗</a>`;
-  return `${badge}${btn}<button class="aitoggle" id="aitoggle" aria-expanded="${aiOpen}">${aiOpen ? "Hide" : "What can live AI do? ▸"}</button>${aiOpen ? `<p class="ailine">${line}</p><ul class="aitry">${TRY.map(([k, t]) => `<li><button data-try="${k}">${t}</button></li>`).join("")}</ul><button class="aiwhat" id="aiwhat">What changes with live AI?</button>` : ""}`;
+  if(st === "checking") return `<span class="badge-ai off">Checking…</span>`;
+  if(st !== "live") return `<span class="badge-ai off" title="Every step works with answers prepared from the same contracts">Prepared answers</span>`;
+  return `<span class="badge-ai">● Live AI on</span><button class="aitoggle" id="aitoggle" aria-expanded="${aiOpen}">${aiOpen ? "Hide" : "What can live AI do? ▸"}</button>${aiOpen ? `<p class="ailine">New questions and new contracts get fresh AI answers. Try:</p><ul class="aitry">${TRY.map(([k, t]) => `<li><button data-try="${k}">${t}</button></li>`).join("")}</ul><button class="aiwhat" id="aiwhat">What changes with live AI?</button>` : ""}`;
 }
 function aiWhat(){
   const rows = [["Ask Pulse","Ask anything across all contracts, in your own words, with clause citations","Six prepared questions"],
@@ -109,8 +109,7 @@ function aiWhat(){
     ["Test-contract generator","Writes a scope of services for any industry you type","A generic description"]];
   modal(`<div class="row between" style="margin-bottom:6px"><h3>What changes with live AI</h3><button class="btn sec sm" data-close>Close</button></div>
     <p class="small muted" style="margin:0 0 12px">Dates, amounts, deadlines and checks are always calculated by code. Live AI matters when you bring something new.</p>
-    <div class="scroll"><table><thead><tr><th>Where</th><th>With live AI</th><th>Without it</th></tr></thead><tbody>${rows.map(r => `<tr><td><b style="font-weight:600">${r[0]}</b></td><td class="small">${r[1]}</td><td class="small muted">${r[2]}</td></tr>`).join("")}</tbody></table></div>
-    ${E.aiState === "live" ? "" : ON_CLAUDE ? `<p class="small" style="margin-top:12px">To turn it on: click <b>Turn on live AI</b> and choose <b>Continue</b> if Claude asks. Where live AI isn't available, every step still works with prepared answers.</p>` : `<p class="small" style="margin-top:12px">This copy has no AI connection. <a href="${CLAUDE_URL}" target="_blank" rel="noopener">Open the live-AI version ↗</a>, sign in to Claude, and click Continue when asked.</p>`}`);
+    <div class="scroll"><table><thead><tr><th>Where</th><th>With live AI</th><th>Without it</th></tr></thead><tbody>${rows.map(r => `<tr><td><b style="font-weight:600">${r[0]}</b></td><td class="small">${r[1]}</td><td class="small muted">${r[2]}</td></tr>`).join("")}</tbody></table></div>`);
 }
 /* jump to the place where each live-AI feature lives, and point at it */
 function tryAI(k){
@@ -120,7 +119,7 @@ function tryAI(k){
   setTimeout(() => { const el = document.querySelector(T[2]); if(!el) return; el.scrollIntoView({ block:"center", behavior:"smooth" });
     el.classList.add("tryhl"); setTimeout(() => el.classList.remove("tryhl"), 2600); if(el.tagName === "INPUT") setTimeout(() => el.focus({ preventScroll:true }), 500); }, 250);
 }
-function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai off" title="Live AI isn't connected here, so Pulse uses prepared answers">Live AI off · prepared answers</span>`; }
+function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai off" title="Every step works with answers prepared from the same contracts">Prepared answers</span>`; }
 
 /* ── demo guide: a list in the sidebar + one floating "next step" button ── */
 /* a step counts as done when its action is done, not when its page was opened */
@@ -241,5 +240,5 @@ if(location.hash === "#live"){ fromCopy = true; E.S.tourSeen = 1; E.save(); try 
 document.addEventListener("DOMContentLoaded", () => { render();
   if(deepSection){ const jump = () => { const el = document.getElementById(deepSection); if(el) el.scrollIntoView(); }; setTimeout(jump, 150); try { document.fonts.ready.then(() => setTimeout(jump, 200)); } catch(e){} }
   if(fromCopy){ aiOpen = true; { const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } } const hl = () => { const ap = $("#aip"); if(ap){ ap.classList.add("tryhl"); setTimeout(() => ap.classList.remove("tryhl"), 3200); } };
-    E.aiReady.then(() => { hl(); toast(E.aiState === "live" ? "You're on the live-AI version, and live AI is on. Try the shortcuts in the left panel." : "Welcome to Pulse. Click “Turn on live AI” in the left panel to try live answers; every step also works with prepared answers."); }); } });
+    E.aiReady.then(() => { if(E.aiState === "live"){ hl(); toast("Live AI is on. Try the shortcuts in the left panel."); } }); } });
 })();
