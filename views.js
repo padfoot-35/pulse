@@ -267,7 +267,8 @@ function phone(s){
   const LQ = E.S.legal || [];
   ((E.S.qa || {})[s.id] || []).forEach((x, k) => { convo += `<div class="mine">${h(x.q)}</div>` + bot(x.a +
       (x.legal && !x.sent && x.a !== "…" ? `<div style="margin-top:8px"><button class="btn sec sm" data-legal="${k}">Send to Rahul in Legal</button></div>` : "") +
-      (x.sent ? `<div class="small muted" style="margin-top:6px">Sent to Rahul Sen, Legal. His reply will appear here.</div>` : ""));
+      (x.sent ? ((LQ.find(l => l.id === x.sent) || {}).status === "answered" ? `<div class="small muted" style="margin-top:6px">Sent to Rahul Sen, Legal. He replied below.</div>`
+        : `<div class="small muted" style="margin-top:6px">Sent to Rahul Sen, Legal. His reply will appear here once he answers.</div><div class="legalnext"><span>In this demo you play Rahul too.</span><button class="btn pri sm" data-persona="rahul" data-goto="verify">Answer it as Rahul →</button></div>`) : ""));
     const lq = x.sent && LQ.find(l => l.id === x.sent);
     if(lq && lq.status === "answered") convo += `<div class="msg"><span class="av" style="background:#e6eef0;color:var(--teal)">RS</span><div class="bd"><div class="nm">Rahul Sen<span>Legal</span></div>${h(lq.answer)}</div></div>`; });
   return `<div class="phone"><div class="screen"><div class="chat-h"><b># Pulse</b><span style="opacity:.75">· direct message</span></div><div class="chat" id="chat">${convo}</div>
@@ -314,8 +315,8 @@ function legalQs(){
     return `<div class="card pad lq"><div class="row between"><div><div class="eyebrow">${h(sp ? sp.name : x.sid)} · from ${h(who.name)} via Slack</div><h3 style="font-size:17px">"${h(x.q)}"</h3></div><a class="btn sec sm" href="#c-${h(x.sid)}">Open the contract</a></div>
       ${x.context ? `<p class="small muted" style="margin:8px 0 0">Pulse's answer so far: ${h(x.context.slice(0, 260))}${x.context.length > 260 ? "…" : ""}</p>` : ""}
       <textarea class="draft" id="lqa-${x.id}" style="min-height:90px;margin-top:10px" placeholder="Your reply to ${h(who.name.split(" ")[0])}. It goes straight back to their Slack thread."></textarea>
-      <div class="row" style="margin-top:8px"><button class="btn pri sm" data-lqsend="${x.id}">Send reply to ${h(who.name.split(" ")[0])}</button></div></div>`; }).join("")}
-  ${ans.length ? `<div class="card scroll"><table><tbody>${ans.map(x => `<tr><td class="small"><b style="font-weight:600">${h((sup(x.sid) || {}).name || x.sid)}</b> · "${h(x.q)}"</td><td class="small muted">Answered: ${h(x.answer)}</td></tr>`).join("")}</tbody></table></div>` : ""}</div>`;
+      <div class="row" style="margin-top:8px;gap:8px"><button class="btn ai sm" data-lqdraft="${x.id}">Draft a reply with AI</button><button class="btn pri sm" data-lqsend="${x.id}">Send reply to ${h(who.name.split(" ")[0])}</button></div></div>`; }).join("")}
+  ${ans.length ? `<div class="card scroll"><table><tbody>${ans.map(x => `<tr><td class="small"><b style="font-weight:600">${h((sup(x.sid) || {}).name || x.sid)}</b> · "${h(x.q)}"</td><td class="small muted">Answered: ${h(x.answer)}</td><td><button class="btn sec sm" data-lqview="${x.id}">See it in ${h(((P.people[x.from] || {}).name || "the owner").split(" ")[0])}'s thread →</button></td></tr>`).join("")}</tbody></table></div>` : ""}</div>`;
 }
 function vItem({ s, f, t }){
   const x = t.cur, older = t.hist;
@@ -514,10 +515,21 @@ function bind(r){
   /* inbox */
   if(r === "inbox") bindInbox();
   /* verify */
+  on("[data-lqdraft]", "click", async e => { const b = e.currentTarget, id = b.dataset.lqdraft, q = (E.S.legal || []).find(x => x.id === id), ta = document.getElementById("lqa-" + id); if(!q || !ta) return;
+    const sp = sup(q.sid), who = P.people[q.from] || { name:"there" }, first = who.name.split(" ")[0];
+    b.disabled = true; b.textContent = "Drafting…";
+    try { const docs = sp.docs.map(d => E.DOCS[d]).map(d => `=== ${d.title} (dated ${E.fmtD(d.effective)}) ===\n${d.text}`).join("\n\n");
+      const out = await E.ask(`You are Rahul Sen, commercial counsel at Vyom Technologies. Draft a short, friendly reply (3 to 5 sentences) to ${first}, a business owner who asked about the ${sp.name} contract. Base it ONLY on the contract text below; cite clauses like (cl. 7.1). If the contract doesn't settle it, say what it does say, what you'd check next, and that you'll confirm before anything goes to the supplier. Sign off as Rahul. No em dashes.\n\nQUESTION: ${q.q}\n\nCONTRACT:\n${docs.slice(0, 40000)}`, { modelTier:"quick" });
+      ta.value = out.text.trim(); }
+    catch(err){ const cx = String(q.context || "").replace(/Want me to send it to Rahul in Legal\?|I can send this to Rahul in Legal with one tap\.?|I can't answer that from the terms Pulse has extracted\.?/g, "").trim();
+      ta.value = `Hi ${first}, thanks for checking with me. ${cx.length > 20 ? "Pulse's reading is right as far as the contract goes: " + cx + " " : ""}I'll review the ${sp.name} agreement on this point and confirm the position in writing before anything goes to the supplier. Rahul`; }
+    b.disabled = false; b.textContent = "Draft a reply with AI"; ta.focus(); });
+  on("[data-lqview]", "click", e => { const q = (E.S.legal || []).find(x => x.id === e.currentTarget.dataset.lqview); if(!q) return; selectThreadFor(q); });
   on("[data-lqsend]", "click", e => { const id = e.currentTarget.dataset.lqsend, ta = document.getElementById("lqa-" + id), v = ta ? ta.value.trim() : "";
     if(!v){ A().toast("Write a short reply first."); return; }
     const q = (E.S.legal || []).find(x => x.id === id); if(!q) return; q.status = "answered"; q.answer = v; q.by = "rahul"; E.save();
     const who = P.people[q.from]; A().toast(`Reply sent to ${who ? who.name.split(" ")[0] : "the owner"}'s Slack thread.`); A().render(); });
+  function selectThreadFor(q){ thread[q.from] = q.sid; A().go("inbox", q.from); }
   on("[data-ok]", "click", e => { const k = e.currentTarget.dataset.ok, msg = e.currentTarget.dataset.msg; if(msg){ A().toast(msg + "."); if(/clean copy/.test(msg)) return; if(/stricter/.test(msg)) return; } E.S.verified[k] = "Rahul Sen"; E.save(); A().toast("Confirmed. Deadlines and packets now use the verified term."); A().render(); });
   /* finance */
   on("[data-fin]", "click", e => { const b = e.currentTarget; A().modal(`<h3>${h(b.dataset.act)}?</h3><p class="muted" style="margin-top:8px">This is a simulated action in the demo. In production it would place a payment hold in the ERP and email the supplier the clause-backed reason, after this confirmation.</p><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn sec" data-close>Cancel</button><button class="btn pri" id="finok">${h(b.dataset.act)}</button></div>`);

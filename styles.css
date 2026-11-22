@@ -385,3 +385,5 @@ details.more .card{box-shadow:none}
 .si-steps li .btn{margin:6px 0 4px;display:inline-flex}
 .si-steps li .small{display:block}
 #aip.tryhl{border-radius:10px}
+.legalnext{margin-top:8px;padding:8px 10px;background:#f6ecf8;border-radius:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.legalnext span{font-size:12.5px;color:var(--purple2);font-weight:600}
