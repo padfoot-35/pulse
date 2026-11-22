@@ -45,10 +45,19 @@ function units(text){
       flush(i + 1);
     }
   }
-  flush(text.length); return out;
+  flush(text.length);
+  /* stitch sentences broken across a page: drop page footers, join a unit that stops mid-sentence with the next */
+  const isFooter = u => u.t.length < 160 && /\bpage\s+\d+\s*(of\s*\d+)?\b/i.test(u.t);
+  const res = [];
+  for(let k = 0; k < out.length; k++){ const u = out[k]; if(isFooter(u)) continue;
+    const prev = res[res.length - 1];
+    if(prev && !/[.;:)"'\]]$/.test(prev.t) && /^[a-z(]/.test(u.t)) { prev.parts = (prev.parts || [prev.t]).concat([u.t]); prev.t = prev.t + " " + u.t; continue; }
+    res.push({ ...u }); }
+  return res;
 }
 /* a verbatim quote of at most ~40 words, centred on the match */
-function quote(u, re){ const words = u.t.split(/\s+/); if(words.length <= 42) return u.t.replace(/\s+/g, " ");
+function quote(u, re){ if(u.parts){ const part = (re && u.parts.find(x => re.test(x))) || u.parts[0]; re && (re.lastIndex = 0); return quote({ t:part }, re); }
+  const words = u.t.split(/\s+/); if(words.length <= 42) return u.t.replace(/\s+/g, " ");
   let at = 0; if(re){ const m = re.exec(u.t); if(m){ at = u.t.slice(0, m.index).split(/\s+/).length - 1; } }
   const a = Math.max(0, Math.min(at - 12, words.length - 40)); return words.slice(a, a + 40).join(" "); }
 

@@ -137,6 +137,15 @@ function preset(i){
 
 /* file reading: .txt/.md native; .pdf via pdf.js; .docx via mammoth (loaded on demand from cdnjs) */
 const loadScript = src => new Promise((res, rej) => { if(document.querySelector(`script[src="${src}"]`)) return res(); const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+/* rebuild lines and paragraphs from pdf.js text items, using their positions */
+function pageText(items){
+  let out = "", lastY = null, lastH = 10;
+  items.forEach(it => { if(!it.str && !it.hasEOL) return; const y = it.transform ? it.transform[5] : null, hgt = Math.abs((it.transform && it.transform[3]) || it.height || 10);
+    if(lastY !== null && y !== null && Math.abs(y - lastY) > 1){ out += Math.abs(y - lastY) > Math.max(lastH, hgt) * 1.75 ? "\n\n" : "\n"; }
+    else if(out && !/\s$/.test(out) && it.str && !/^\s/.test(it.str)) out += " ";
+    out += it.str; if(y !== null){ lastY = y; lastH = hgt || lastH; } });
+  return out.replace(/[ \t]+\n/g, "\n");
+}
 async function readFile(f){
   const name = f.name.toLowerCase();
   if(name.endsWith(".pdf")){
@@ -144,7 +153,7 @@ async function readFile(f){
     try { await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
     await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js");
     const lib = window.pdfjsLib; const doc = await lib.getDocument({ data: buf, disableWorker:true }).promise;
-    let out = ""; for(let p = 1; p <= Math.min(doc.numPages, 40); p++){ const pg = await doc.getPage(p); const tc = await pg.getTextContent(); out += tc.items.map(x => x.str).join(" ") + "\n\n"; }
+    let out = ""; for(let p = 1; p <= Math.min(doc.numPages, 40); p++){ const pg = await doc.getPage(p); const tc = await pg.getTextContent(); out += pageText(tc.items) + "\n\n"; }
     out = out.trim(); if(out.replace(/\s/g, "").length < 200) throw { code:"scanned" }; return out;
     } catch(e){ if(e && e.code === "scanned") throw e; throw { code:"pdfreader" }; }
   }
