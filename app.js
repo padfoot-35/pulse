@@ -110,7 +110,7 @@ function aiWhat(){
   modal(`<div class="row between" style="margin-bottom:6px"><h3>What changes with live AI</h3><button class="btn sec sm" data-close>Close</button></div>
     <p class="small muted" style="margin:0 0 12px">Dates, amounts, deadlines and checks are always calculated by code. Live AI matters when you bring something new.</p>
     <div class="scroll"><table><thead><tr><th>Where</th><th>With live AI</th><th>Without it</th></tr></thead><tbody>${rows.map(r => `<tr><td><b style="font-weight:600">${r[0]}</b></td><td class="small">${r[1]}</td><td class="small muted">${r[2]}</td></tr>`).join("")}</tbody></table></div>
-    ${E.aiState === "live" ? "" : ON_CLAUDE ? `<p class="small" style="margin-top:12px">To turn it on: be signed in to Claude with an account that allows pages to use Claude (a personal account usually does), then click <b>Turn on live AI</b> and choose <b>Continue</b> when Claude asks.</p>` : `<p class="small" style="margin-top:12px">This copy has no AI connection. <a href="${CLAUDE_URL}" target="_blank" rel="noopener">Open the live-AI version ↗</a>, sign in to Claude, and click Continue when asked.</p>`}`);
+    ${E.aiState === "live" ? "" : ON_CLAUDE ? `<p class="small" style="margin-top:12px">To turn it on: click <b>Turn on live AI</b> and choose <b>Continue</b> if Claude asks. Where live AI isn't available, every step still works with prepared answers.</p>` : `<p class="small" style="margin-top:12px">This copy has no AI connection. <a href="${CLAUDE_URL}" target="_blank" rel="noopener">Open the live-AI version ↗</a>, sign in to Claude, and click Continue when asked.</p>`}`);
 }
 /* jump to the place where each live-AI feature lives, and point at it */
 function tryAI(k){
@@ -166,18 +166,16 @@ function showClause(docId, quote, cl){ const d = E.DOCS[docId];
 let lastRoute = null;
 /* live AI couldn't start: say exactly what to do */
 function signIn(){
-  /* claude.use("sample") answers null without a reason: signed out, or this account/organization doesn't let pages use Claude. Say both, plainly. */
+  /* claude.use("sample") answers null without a reason, so say what happens next, not why */
   const d = modal(`<div class="signin">
-    <h3>Live AI isn't available in this view</h3>
-    <p class="small ink2" style="margin:0 0 10px">Claude didn't connect live AI here and doesn't say why. It's one of two things:</p>
-    <ol class="si-steps">
-      <li><b>You're not signed in to Claude</b> (no profile picture at the top right of this page).<span class="row" style="gap:8px;margin:8px 0 2px;flex-wrap:wrap;display:flex;align-items:center"><a class="btn ai sm" href="https://claude.ai/login" target="_blank" rel="noopener">Sign in to Claude ↗</a> then <a class="btn pri sm" href="${CLAUDE_URL}" target="_blank" rel="noopener">Open Pulse with live AI ↗</a></span><span class="small muted">A page opened before you signed in can't see your sign-in, so open Pulse again in a fresh tab.</span></li>
-      <li><b>You're signed in, but your Claude account doesn't allow pages to use Claude.</b><span class="small muted">This depends on your Claude plan or your organization's settings (some work and college accounts switch it off). It isn't something this page can change. Signing in with a personal Claude account usually works.</span></li></ol>
-    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn sec" id="si-retry">Try again in this tab</button><button class="btn pri" data-close>Continue with prepared answers</button></div>
-    <p class="small muted" style="margin:12px 0 0">Every step of the demo works without live AI: Pulse uses prepared answers drawn from the same contracts.</p></div>`);
-  const r = d.querySelector("#si-retry"); if(r) r.onclick = async () => { r.disabled = true; r.textContent = "Asking Claude…"; const ok = await E.retryAI();
+    <h3>Pulse is running on prepared answers here</h3>
+    <p style="margin:0 0 10px">Live AI didn't start in this view. Claude decides this for each viewer and doesn't share a reason, so Pulse switches to prepared answers drawn from the same contracts.</p>
+    <p style="margin:0 0 10px"><b>Nothing is lost:</b> every step of the demo works the same way, including reading terms, deadlines, the owner check-in and the decision packet.</p>
+    <p class="small muted" style="margin:0">Signed out of Claude? <a href="https://claude.ai/login" target="_blank" rel="noopener">Sign in ↗</a>, then <a href="${CLAUDE_URL}" target="_blank" rel="noopener">open Pulse in a fresh tab ↗</a>.</p>
+    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn pri" data-close>Continue the demo</button><button class="btn sec" id="si-retry">Try live AI again</button></div></div>`);
+  const r = d.querySelector("#si-retry"); if(r) r.onclick = async () => { r.disabled = true; r.textContent = "Checking…"; const ok = await E.retryAI();
     if(ok){ close(); toast("Live AI is on. Open “What can live AI do?” for ideas to try."); }
-    else { r.disabled = false; r.textContent = "Still unavailable: see the two reasons above"; } };
+    else { r.disabled = false; r.textContent = "Not available in this view"; } };
 }
 function bindAI(){
   const tg = $("#aitoggle"); if(tg) tg.onclick = () => { aiOpen = !aiOpen; const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } };
@@ -243,5 +241,5 @@ if(location.hash === "#live"){ fromCopy = true; E.S.tourSeen = 1; E.save(); try 
 document.addEventListener("DOMContentLoaded", () => { render();
   if(deepSection){ const jump = () => { const el = document.getElementById(deepSection); if(el) el.scrollIntoView(); }; setTimeout(jump, 150); try { document.fonts.ready.then(() => setTimeout(jump, 200)); } catch(e){} }
   if(fromCopy){ aiOpen = true; { const ap = $("#aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } } const hl = () => { const ap = $("#aip"); if(ap){ ap.classList.add("tryhl"); setTimeout(() => ap.classList.remove("tryhl"), 3200); } };
-    E.aiReady.then(() => { hl(); toast(E.aiState === "live" ? "You're on the live-AI version, and live AI is on. Try the shortcuts in the left panel." : "You're on the live-AI version. Click “Turn on live AI” in the left panel to start."); }); } });
+    E.aiReady.then(() => { hl(); toast(E.aiState === "live" ? "You're on the live-AI version, and live AI is on. Try the shortcuts in the left panel." : "Welcome to Pulse. Click “Turn on live AI” in the left panel to try live answers; every step also works with prepared answers."); }); } });
 })();
