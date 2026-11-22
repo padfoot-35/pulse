@@ -77,8 +77,7 @@ function sidebar(r){
     verify: window.PV.verifyItems().length, inbox: window.PV.myThreads(p).filter(t => !E.S.checkins[t.id]).length };
   return `<aside class="side"><div class="pp"><span class="av lg ${OWNERS.includes(p)?"p":""}">${me.init}</span><span class="nm2"><b>${h(me.name)}</b><span>${h(me.role)}</span></span></div>
   ${navFor(p).map(([k, l]) => `<a class="nav ${r === k || r.startsWith(k.slice(0,3)+"-") && k==="contracts" ? "on" : ""}" href="#${k}">${l}${counts[k] ? `<span class="ct">${counts[k]}</span>` : ""}</a>`).join("")}
-  <div class="sep">Live AI</div><div style="padding:0 10px" id="aib">${aiBadge()}</div>
-  <p class="aihint" id="aihint">${aiHint()}</p>
+  <div class="sep">Live AI</div><div class="aip" id="aip">${aiPanel()}</div>
   ${guideList(r)}
   <p class="small muted" style="padding:16px 10px 0;font-size:12px;line-height:1.4">Concept prototype for a Sirion assessment. Not a Sirion product. All companies, people and contracts are fictional.</p>
   <div class="sep">Try another role</div>
@@ -87,7 +86,40 @@ function sidebar(r){
 }
 const CLAUDE_URL = "https://claude.ai/artifact/QnBrTMmTd8EDzQWVsR9q3q";
 const ON_CLAUDE = !!window.claude;
-function aiHint(){ const st = E.aiState; if(!ON_CLAUDE) return `This copy runs without live AI: every step uses stored answers and the basic reader. <a href="${CLAUDE_URL}" target="_blank" rel="noopener">See it with live AI →</a> (sign in to Claude, click Continue).`; return st === "live" ? "Answers are generated fresh with your Claude account." : st === "off" ? "<b>Signed in to Claude?</b> Reload and click <b>Continue</b> when asked, to turn on live AI. <b>Not signed in?</b> Every step still works with stored answers." : ""; }
+const TRY = [
+  ["ask", "Ask your contracts anything"],
+  ["read", "Read any contract"],
+  ["challenge", "Challenge a recommendation"],
+  ["polish", "Rewrite the supplier email"],
+  ["slack", "Ask from the Slack check-in"]
+];
+function aiPanel(){
+  const st = E.aiState;
+  const badge = st === "live" ? `<span class="badge-ai">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking…</span>` : `<span class="badge-ai off">Live AI off</span>`;
+  const line = st === "live" ? "New questions and new contracts get fresh AI answers. Try:" : "Live AI answers new questions and reads any contract. Off, Pulse uses prepared answers. Try:";
+  const btn = st === "live" || st === "checking" ? "" : ON_CLAUDE ? `<button class="btn ai sm aion" id="aion">Turn on live AI</button>` : `<a class="btn ai sm aion" href="${CLAUDE_URL}" target="_blank" rel="noopener">Open the live-AI version ↗</a>`;
+  return `${badge}${btn}<p class="ailine">${line}</p><ul class="aitry">${TRY.map(([k, t]) => `<li><button data-try="${k}">${t}</button></li>`).join("")}</ul><button class="aiwhat" id="aiwhat">What changes with live AI?</button>`;
+}
+function aiWhat(){
+  const rows = [["Ask Pulse","Ask anything across all contracts, in your own words, with clause citations","Six prepared questions"],
+    ["Add a contract","Reads any wording in any format and explains each term","Basic rules reader: standard clauses only"],
+    ["Challenge a recommendation","A fresh critique of the recommendation","A prepared critique"],
+    ["Polish the supplier email","Rewrites in your chosen tone, then checks no amount, date or clause changed","The prepared draft"],
+    ["Owner's Slack check-in","The owner can ask a question about the contract","Not available"],
+    ["Test-contract generator","Writes a scope of services for any industry you type","A generic description"]];
+  modal(`<div class="row between" style="margin-bottom:6px"><h3>What changes with live AI</h3><button class="btn sec sm" data-close>Close</button></div>
+    <p class="small muted" style="margin:0 0 12px">Dates, amounts, deadlines and checks are always calculated by code. Live AI matters when you bring something new.</p>
+    <div class="scroll"><table><thead><tr><th>Where</th><th>With live AI</th><th>Without it</th></tr></thead><tbody>${rows.map(r => `<tr><td><b style="font-weight:600">${r[0]}</b></td><td class="small">${r[1]}</td><td class="small muted">${r[2]}</td></tr>`).join("")}</tbody></table></div>
+    ${E.aiState === "live" ? "" : ON_CLAUDE ? `<p class="small" style="margin-top:12px">To turn it on: be signed in to Claude, then click <b>Turn on live AI</b> and choose <b>Continue</b> when Claude asks.</p>` : `<p class="small" style="margin-top:12px">This copy has no AI connection. <a href="${CLAUDE_URL}" target="_blank" rel="noopener">Open the live-AI version ↗</a>, sign in to Claude, and click Continue when asked.</p>`}`);
+}
+/* jump to the place where each live-AI feature lives, and point at it */
+function tryAI(k){
+  const T = { ask:["ask","priya","#askq"], read:["add","priya",'[data-tour="upload"]'], challenge:["packet-cleanspace","priya","#explainBtn"], polish:["packet-cleanspace","priya","#polish"], slack:["inbox","kavya","#askc"] }[k];
+  if(!T) return; if(k === "slack" && window.PV.selectThread) window.PV.selectThread("kavya", "cleanspace");
+  go(T[0], T[1]);
+  setTimeout(() => { const el = document.querySelector(T[2]); if(!el) return; el.scrollIntoView({ block:"center", behavior:"smooth" });
+    el.classList.add("tryhl"); setTimeout(() => el.classList.remove("tryhl"), 2600); if(el.tagName === "INPUT") setTimeout(() => el.focus({ preventScroll:true }), 500); }, 250);
+}
 function aiBadge(){ const st = E.aiState; return st === "live" ? `<span class="badge-ai" title="AI calls run live in this view">● Live AI on</span>` : st === "checking" ? `<span class="badge-ai off">Checking AI…</span>` : `<span class="badge-ai off" title="This view can't run live AI; stored AI results are shown for the demo contracts">Stored AI results</span>`; }
 
 /* ── demo guide: a list in the sidebar + one floating "next step" button ── */
@@ -127,6 +159,17 @@ function showClause(docId, quote, cl){ const d = E.DOCS[docId];
 
 /* ── render ── */
 let lastRoute = null;
+function bindAI(){
+  document.querySelectorAll("[data-try]").forEach(b => b.onclick = () => tryAI(b.dataset.try));
+  const w = $("#aiwhat"); if(w) w.onclick = aiWhat;
+  const on = $("#aion"); if(on && on.tagName === "BUTTON") on.onclick = async () => {
+    if(on.dataset.reload){ location.reload(); return; }
+    on.disabled = true; on.textContent = "Asking Claude…";
+    const ok = await E.retryAI();
+    if(ok) toast("Live AI is on. Try one of the shortcuts below.");
+    else { toast("Claude didn't turn it on. Make sure you're signed in to Claude, then reload and click Continue when asked."); const b = $("#aion"); if(b){ b.disabled = false; b.textContent = "Reload and try again"; b.dataset.reload = "1"; } }
+  };
+}
 let switchedTo = null, justSwitched = false;
 function render(){
   const r = route(), app = $("#app");
@@ -156,13 +199,14 @@ function bindShell(){
   const who = $("#who"); if(who){ who.querySelector("button").onclick = e => { e.stopPropagation(); who.classList.toggle("open"); }; document.addEventListener("click", () => who.classList.remove("open"), { once:true }); }
   document.querySelectorAll("[data-persona]:not([data-goto])").forEach(b => b.addEventListener("click", e => { e.preventDefault(); const id = b.dataset.persona; if(E.S.persona !== id) switchedTo = id; E.S.persona = id; E.save(); const home = homeOf(id); const r = route();
     const keep = navFor(id).some(([k]) => k === r); go(keep ? r : home); }));
+  bindAI();
   const sx = document.querySelector("[data-stripx]"); if(sx) sx.onclick = () => { const st = sx.closest(".pstrip"); const open = st.classList.toggle("open"); sx.setAttribute("aria-expanded", open); sx.textContent = open ? "Hide" : "Goal and frustration"; };
   const tb = $("#tourBtn"); if(tb) tb.onclick = () => window.PT.start(0);
   const rs = $("#reset"); if(rs) rs.onclick = () => { modal(`<h3>Reset the demo?</h3><p class="muted" style="margin-top:8px">This clears everything you did in this browser: check-ins, Legal confirmations, decisions, supplier replies, the shared-drive onboarding, the tariff scenario, and any contracts you generated, read or added. The demo starts again from 22 Nov 2026.</p><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn sec" data-close>Cancel</button><button class="btn pri" id="doreset">Reset</button></div>`); $("#doreset").onclick = () => { E.reset(); close(); go("radar", "priya"); toast("Demo reset."); }; };
   document.querySelectorAll(".sguide li,.nextbar [data-g],.nextmini").forEach(li => li.onclick = () => { const i = +li.dataset.g; if(i < 0){ go("story"); return; } const s = GUIDE[i]; go(s.r, s.p); });
   document.querySelectorAll("[data-where]").forEach(b => b.addEventListener("click", e => { e.preventDefault(); const [d, i] = b.dataset.where.split("|"); const s = P.suppliers.find(x => x.terms.some(t => t.doc === d)); const t = s ? s.terms[+i] : null; showClause(d, t ? t.q : null, t ? t.cl : null); }));
 }
-document.addEventListener("ai-state", () => { document.querySelectorAll("#aib,.aib").forEach(el => el.innerHTML = aiBadge()); const hn = document.getElementById("aihint"); if(hn) hn.innerHTML = aiHint(); });
+document.addEventListener("ai-state", () => { document.querySelectorAll("#aib,.aib").forEach(el => el.innerHTML = aiBadge()); const ap = document.getElementById("aip"); if(ap){ ap.innerHTML = aiPanel(); bindAI(); } });
 
 window.PA = { h, $, byId, go, toast, modal, close, showClause, docHTML, render, OWNERS, PERSONAS, aiBadge, setPersona, GUIDE };
 document.addEventListener("DOMContentLoaded", render);

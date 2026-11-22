@@ -165,7 +165,10 @@ function options(s){
 
 /* ── AI (live when the viewer allows it; stored results otherwise) ── */
 let AI = null, aiState = "checking";
-const aiReady = (async () => { try { if(window.claude && window.claude.use){ AI = await window.claude.use("sample"); } } catch(e){ AI = null; } aiState = AI ? "live" : "off"; document.dispatchEvent(new Event("ai-state")); return AI; })();
+const connect = async () => { try { if(window.claude && window.claude.use){ AI = await window.claude.use("sample"); } } catch(e){ AI = null; } aiState = AI ? "live" : "off"; document.dispatchEvent(new Event("ai-state")); return AI; };
+let aiReady = connect();
+/* ask Claude for permission again (the "Turn on live AI" button) */
+async function retryAI(){ if(AI) return true; aiState = "checking"; document.dispatchEvent(new Event("ai-state")); aiReady = connect(); return !!(await aiReady); }
 async function ask(prompt, opts = {}){ await aiReady; if(!AI) throw { code:"unavailable" };
   const ctl = new AbortController(), ms = opts.timeout || 75000;
   const { timeout, json, keepDashes, ...rest } = opts;
@@ -189,5 +192,5 @@ function allRows(){
 }
 
 window.PE = { DOCS, TODAY, D, iso, addDays, addMonths, daysBetween, fmtD, fmtDs, inr, get S(){ return S; }, save, reset,
-  terms, clock, signals, credits, tbOver, options, ownerOf, allRows, ask, md, aiReady, get aiState(){ return aiState; } };
+  terms, clock, signals, credits, tbOver, options, ownerOf, allRows, ask, md, retryAI, get aiReady(){ return aiReady; }, get aiState(){ return aiState; } };
 })();
